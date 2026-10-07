@@ -87,4 +87,4 @@ binary: [36 bytes item id ascii][8 bytes big-endian offset][chunk ≤ 256 KiB]
 - Logs never contain item content.
 
 ## Visual tokens
-paper `#F5F0E8`, ink `#1A1A1A`, coral `#FF4F81` (primary), lime `#CCFF00` (connected), plus sparing blue `#2979FF`, amber `#FFA41F`. Dark theme: background `#121212`, surface `#1E1E1E`, text paper. Headings Archivo Black, body Space Grotesk (bundled in `assets/fonts`). Cards/buttons: radius 18, 2px ink border, hard offset shadow (4,4) in ink, subtle noise overlay. Animations 200–500 ms, ambient loops pause when app is inactive; reduced motion → fades only.
+See docs/DESIGN.md (single source of truth for colors, type, shape, components, dots).

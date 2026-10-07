@@ -60,7 +60,7 @@ Aanpasbaar venster, drag-and-drop, optioneel menubalkicoon met status, compact s
 APK via GitHub Releases, deelmenu, QR-scanner, systeembestandskiezer, meldingen (indien toegestaan), overdrachtsvoortgang, grote aanraakvlakken. Geen belofte van permanente achtergrondverbinding.
 
 ## Visuele richting
-Paper #F5F0E8 en ink #1A1A1A. Coral #FF4F81 primair accent. Lime #CCFF00 voor succesvolle verbinding. Koppen Archivo Black, tekst/bediening Space Grotesk. Afgeronde hoeken, duidelijke borders, harde offsetschaduwen, subtiele noise. Eén centrale handeling per scherm.
+Vervangen door docs/DESIGN.md: clean en minimalistisch (referentie mouse.ly), eigen identiteit, Inter, één accentkleur (DOT blue), zachte schaduwen, veel witruimte.
 
 ## Dots en animaties
 Grote zachte 3D-bollen met gecontroleerde belichting. Start: schaal-in. Zoeken: klein rustig patroon. Verbinden: naar elkaar toe. Verbonden: korte bounce. Versturen: kleine dot reist van apparaat naar apparaat. Ontvangen: korte puls. Verbreken: uit elkaar, tot rust. Interacties 0,2–0,5 s; doorlopende animaties subtiel en stoppen als het scherm niet actief is. Verminderde beweging: korte fades. App blijft zonder animatie begrijpelijk.
