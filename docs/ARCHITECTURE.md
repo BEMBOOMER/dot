@@ -11,7 +11,7 @@ This document is the contract between the people/agents building DOT. Read `docs
 - Transport: WebSocket over TLS (`dart:io` `HttpServer.bindSecure` on macOS, `WebSocket.connect` / `HttpClient` with pinned cert on Android).
 - Crypto: `cryptography` (Ed25519 identity + HMAC), `basic_utils` (self-signed EC cert generation), `crypto` (sha256).
 - UI packages: `qr_flutter` (mac shows QR), `mobile_scanner` (android scans), `file_picker`, `url_launcher`, `share_plus`, `open_filex`, `flutter_local_notifications`.
-- macOS packages: `window_manager`, `tray_manager`, `launch_at_startup`, `desktop_drop`.
+- macOS packages: `window_manager`, `tray_manager`, `desktop_drop`; start at login via a native SMAppService channel (`lib/platform/login_item.dart`).
 - Android: `receive_sharing_intent` (share menu target).
 
 ## Folder ownership (do not edit folders you don't own without a note in your report)
@@ -21,10 +21,10 @@ lib/
   app.dart               # MaterialApp, routing, theme switching (integrator)
   core/                  # models, repository, settings, AppState, SyncEngine interface (integrator) — FROZEN API
   sync/                  # pairing, identity, TLS, server/client, discovery, protocol, file transfer (sync agent)
-  ui/theme/              # tokens, ThemeData, noise (ui agent)
+  ui/theme/              # tokens + ThemeData per docs/DESIGN.md (ui agent)
   ui/dots/               # 3D dot painter + status animations (ui agent)
   ui/screens/            # welcome, pair, workspace, item detail, devices, settings (ui agent)
-  ui/widgets/            # shared widgets: brutal cards/buttons, status bar (ui agent)
+  ui/widgets/            # shared widgets: DotCard, DotButton, ItemCard, status line (ui agent)
   platform/              # share intent, tray, window, launch-at-login, drop, notifications (platform agent)
 test/                    # each agent adds tests for its own folder
 android/ macos/          # native config (platform agent)

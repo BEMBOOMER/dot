@@ -1,6 +1,6 @@
 # DOT — agent instructions
 
-You are one of several coding agents (Codex, Copilot, Antigravity, Gemini, Freebuff) building DOT together.
+You are one of the coding agents (Codex, Copilot) building DOT. Design rules: docs/DESIGN.md.
 Claude is the reviewer/orchestrator: it assigns tasks, then runs analyze/tests/builds and reviews your diff.
 
 Read first: `docs/CONCEPT.md` (product spec, Dutch) and `docs/ARCHITECTURE.md` (contract: stack, folder ownership, protocol, sync rules).
