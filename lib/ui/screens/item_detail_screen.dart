@@ -13,7 +13,8 @@ import '../../core/app_state.dart';
 import '../../core/item_repository.dart';
 import '../../core/sync_engine.dart';
 import '../../core/models.dart';
-import '../widgets/brutal_widgets.dart';
+import '../widgets/dot_widgets.dart';
+import '../theme/dot_theme.dart';
 
 class ItemDetailScreen extends StatefulWidget {
   const ItemDetailScreen({super.key});
@@ -77,12 +78,16 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             if (snapshot.connectionState == ConnectionState.waiting &&
                 !snapshot.hasData) {
               return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
+                body: ScreenContent(
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               );
             }
             if (snapshot.hasError) {
               return const Scaffold(
-                body: Center(child: Text('Item laden lukt nog niet')),
+                body: ScreenContent(
+                  child: Center(child: Text('Item laden lukt nog niet')),
+                ),
               );
             }
             final item = snapshot.data;
@@ -91,10 +96,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                 appBar: AppBar(
                   title: const Text(
                     'Details',
-                    style: TextStyle(fontFamily: 'ArchivoBlack'),
+                    style: TextStyle(fontFamily: 'Inter'),
                   ),
                 ),
-                body: const Center(child: Text('Item niet gevonden')),
+                body: ScreenContent(
+                  child: const Center(child: Text('Item niet gevonden')),
+                ),
               );
             }
 
@@ -107,7 +114,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
               appBar: AppBar(
                 title: Text(
                   itemTypeLabel(item.type),
-                  style: const TextStyle(fontFamily: 'ArchivoBlack'),
+                  style: const TextStyle(fontFamily: 'Inter'),
                 ),
                 actions: [
                   IconButton(
@@ -122,123 +129,109 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
                   ),
                 ],
               ),
-              body: ListView(
-                padding: const EdgeInsets.all(16.0),
-                children: [
-                  if (item.type == ItemType.note &&
-                      item.conflictOf != null &&
-                      !_dismissedConflict) ...[
-                    BrutalCard(
-                      color: const Color(0xFFFFA41F), // amber
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Andere versie van deze notitie',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
+              body: ScreenContent(
+                child: ListView(
+                  padding: EdgeInsets.all(
+                    MediaQuery.sizeOf(context).width > 800 ? 32 : 20,
+                  ),
+                  children: [
+                    if (item.type == ItemType.note &&
+                        item.conflictOf != null &&
+                        !_dismissedConflict) ...[
+                      DotCard(
+                        color: DotColors.muted(context),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Andere versie van deze notitie',
+                                style: TextStyle(fontWeight: FontWeight.bold),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                BrutalButton(
-                                  label: 'Samenvoegen',
-                                  color: const Color(0xFFCCFF00), // lime
-                                  onPressed: () async {
-                                    final original = await repo.get(
-                                      item.conflictOf!,
-                                    );
-                                    if (original != null) {
-                                      final mergedBody =
-                                          '${original.body}\n\nAndere versie:\n\n${item.body}';
-                                      await appState.updateNote(
-                                        original.id,
-                                        mergedBody,
-                                        title: original.title,
+                              const SizedBox(height: 16),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  DotButton(
+                                    variant: DotButtonStyle.secondary,
+                                    label: 'Samenvoegen',
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary, // lime
+                                    onPressed: () async {
+                                      final original = await repo.get(
+                                        item.conflictOf!,
                                       );
-                                    }
-                                    if (original == null) return;
-                                    await appState.deleteItem(item.id);
-                                    if (context.mounted) Navigator.pop(context);
-                                  },
-                                ),
-                                BrutalButton(
-                                  label: 'Deze houden',
-                                  color: Colors.white,
-                                  onPressed: () {
-                                    setState(() {
-                                      _dismissedConflict = true;
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ],
+                                      if (original != null) {
+                                        final mergedBody =
+                                            '${original.body}\n\nAndere versie:\n\n${item.body}';
+                                        await appState.updateNote(
+                                          original.id,
+                                          mergedBody,
+                                          title: original.title,
+                                        );
+                                      }
+                                      if (original == null) return;
+                                      await appState.deleteItem(item.id);
+                                      if (context.mounted) {
+                                        Navigator.pop(context);
+                                      }
+                                    },
+                                  ),
+                                  DotButton(
+                                    variant: DotButtonStyle.secondary,
+                                    label: 'Deze houden',
+                                    color: Colors.white,
+                                    onPressed: () {
+                                      setState(() {
+                                        _dismissedConflict = true;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                      const SizedBox(height: 16),
+                    ],
 
-                  Row(
-                    children: [
-                      Text(
-                        itemOriginLabel(context, item),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                    Row(
+                      children: [
+                        Text(
+                          itemOriginLabel(context, item),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        decoration: BoxDecoration(
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        StatusPill(
+                          label: syncStateLabel(item.syncState),
                           color: _getSyncStateColor(item.syncState),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFFF5F0E8)
-                                : const Color(0xFF1A1A1A),
-                            width: 1.5,
-                          ),
                         ),
-                        child: Text(
-                          syncStateLabel(item.syncState),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: Colors.black,
-                          ),
-                        ),
-                      ),
+                      ],
+                    ),
+                    if (item.syncState == SyncState.sending &&
+                        item.type == ItemType.file &&
+                        item.progress > 0) ...[
+                      const SizedBox(height: 16),
+                      LinearProgressIndicator(value: item.progress),
                     ],
-                  ),
-                  if (item.syncState == SyncState.sending &&
-                      item.type == ItemType.file &&
-                      item.progress > 0) ...[
-                    const SizedBox(height: 16),
-                    LinearProgressIndicator(value: item.progress),
+                    const SizedBox(height: 24),
+                    _buildContent(context, item, appState),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _buildActions(context, item, appState, engine),
+                    ),
                   ],
-                  const SizedBox(height: 24),
-                  _buildContent(context, item, appState),
-                  const SizedBox(height: 24),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _buildActions(context, item, appState, engine),
-                  ),
-                ],
+                ),
               ),
             );
           },
@@ -251,14 +244,14 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     switch (item.type) {
       case ItemType.text:
       case ItemType.link:
-        return BrutalCard(
+        return DotCard(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: SelectableText(item.body),
           ),
         );
       case ItemType.note:
-        return BrutalCard(
+        return DotCard(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -278,7 +271,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
           ),
         );
       case ItemType.file:
-        return BrutalCard(
+        return DotCard(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -309,19 +302,21 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
     if (item.type != ItemType.file || item.localPath != null) {
       actions.add(
-        BrutalButton(
+        DotButton(
+          variant: DotButtonStyle.primary,
           label: 'Kopiëren',
           onPressed: () => appState.copyItem(item.id),
-          color: const Color(0xFF2979FF),
+          color: Theme.of(context).colorScheme.primary,
         ),
       );
     }
 
     if (item.type == ItemType.link && item.body.isNotEmpty) {
       actions.add(
-        BrutalButton(
+        DotButton(
+          variant: DotButtonStyle.secondary,
           label: 'Open link',
-          color: const Color(0xFFCCFF00),
+          color: Theme.of(context).colorScheme.primary,
           onPressed: () async {
             final uri = Uri.tryParse(item.body);
             if (uri != null && await canLaunchUrl(uri)) {
@@ -334,9 +329,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
     if (item.type == ItemType.file && item.localPath != null) {
       actions.add(
-        BrutalButton(
+        DotButton(
+          variant: DotButtonStyle.secondary,
           label: 'Openen',
-          color: const Color(0xFFCCFF00),
+          color: Theme.of(context).colorScheme.primary,
           onPressed: () {
             _runAction(() => openDotFile(item.localPath!));
           },
@@ -345,7 +341,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
       if (Platform.isMacOS) {
         actions.add(
-          BrutalButton(
+          DotButton(
+            variant: DotButtonStyle.secondary,
             label: 'Toon in map',
             onPressed: () async {
               await _runAction(() => revealDotFile(item.localPath!));
@@ -357,7 +354,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
     if (item.type != ItemType.file || item.localPath != null) {
       actions.add(
-        BrutalButton(
+        DotButton(
+          variant: DotButtonStyle.secondary,
           label: 'Delen',
           onPressed: () {
             if (item.type == ItemType.file && item.localPath != null) {
@@ -375,25 +373,28 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     if (item.syncState == SyncState.failed ||
         item.syncState == SyncState.waiting) {
       actions.add(
-        BrutalButton(
+        DotButton(
+          variant: DotButtonStyle.secondary,
           label: 'Opnieuw versturen',
-          color: const Color(0xFFFFA41F),
+          color: const Color(0xFFF5A524),
           onPressed: () => engine.retry(item.id),
         ),
       );
     }
 
     actions.add(
-      BrutalButton(
+      DotButton(
+        variant: DotButtonStyle.secondary,
         label: item.pinned ? 'Losmaken' : 'Vastzetten',
         onPressed: () => appState.togglePin(item.id),
       ),
     );
 
     actions.add(
-      BrutalButton(
+      DotButton(
+        variant: DotButtonStyle.ghost,
         label: 'Verwijderen',
-        color: const Color(0xFFFF4F81),
+        color: Theme.of(context).colorScheme.error,
         onPressed: () => _confirmDelete(context, appState, item.id),
       ),
     );
@@ -414,18 +415,13 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
     }
   }
 
-  Color _getSyncStateColor(SyncState state) {
-    switch (state) {
-      case SyncState.local:
-      case SyncState.received:
-        return const Color(0xFFCCFF00); // lime
-      case SyncState.failed:
-        return const Color(0xFFFF4F81); // coral
-      case SyncState.waiting:
-      case SyncState.sending:
-        return const Color(0xFFFFA41F); // amber
-    }
-  }
+  Color _getSyncStateColor(SyncState state) => switch (state) {
+    SyncState.local => DotColors.secondary(context),
+    SyncState.received => DotColors.success(context),
+    SyncState.failed => Theme.of(context).colorScheme.error,
+    SyncState.waiting => DotColors.warning(context),
+    SyncState.sending => Theme.of(context).colorScheme.primary,
+  };
 
   Future<void> _confirmDelete(
     BuildContext context,
@@ -446,7 +442,7 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             onPressed: () => Navigator.pop(context, true),
             child: const Text(
               'Verwijderen',
-              style: TextStyle(color: Color(0xFFFF4F81)),
+              style: TextStyle(color: Color(0xFFE5484D)),
             ),
           ),
         ],

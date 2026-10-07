@@ -12,7 +12,7 @@ import '../../core/item_repository.dart';
 import '../../core/sync_engine.dart';
 import '../../core/settings_store.dart';
 import '../../core/models.dart';
-import '../widgets/brutal_widgets.dart';
+import '../widgets/dot_widgets.dart';
 import '../dots/dots_stage.dart';
 import '../theme/dot_theme.dart';
 
@@ -88,16 +88,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
           child: TextField(
             focusNode: _searchFocusNode,
             onChanged: (val) => setState(() => _query = val),
             decoration: InputDecoration(
               hintText: 'Zoeken…',
               prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
+
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 12,
@@ -113,7 +111,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           ).createShader(bounds),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 0, 32, 0),
+            padding: const EdgeInsets.fromLTRB(20, 0, 32, 0),
             child: Row(
               children: _filterMap.entries.map((entry) {
                 final isSelected = _selectedFilter == entry.value;
@@ -127,10 +125,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         setState(() => _selectedFilter = entry.value);
                       }
                     },
-                    selectedColor: DotColors.lime,
+                    showCheckmark: false,
+                    selectedColor: Theme.of(context).colorScheme.primary,
                     labelStyle: TextStyle(
-                      color: isSelected ? DotColors.ink : null,
-                      fontFamily: 'SpaceGrotesk',
+                      color: isSelected
+                          ? Colors.white
+                          : Theme.of(context).colorScheme.onSurface,
+                      fontFamily: 'Inter',
                       fontWeight: isSelected
                           ? FontWeight.bold
                           : FontWeight.normal,
@@ -150,7 +151,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
+                    horizontal: 20.0,
                     vertical: 8.0,
                   ),
                   itemCount: items.length,
@@ -203,10 +204,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             children: [
               Text(
                 itemTypeLabel(item.type),
-                style: const TextStyle(
-                  fontFamily: 'ArchivoBlack',
-                  fontSize: 24,
-                ),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               const Spacer(),
               IconButton(
@@ -228,7 +226,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: BrutalCard(
+            child: DotCard(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: SelectableText(
@@ -245,21 +243,24 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              BrutalButton(
+              DotButton(
+                variant: DotButtonStyle.primary,
                 label: 'Kopiëren',
-                color: DotColors.blue,
+                color: Theme.of(context).colorScheme.primary,
                 onPressed: () => appState.copyItem(item.id),
               ),
               if (item.syncState == SyncState.failed ||
                   item.syncState == SyncState.waiting)
-                BrutalButton(
+                DotButton(
+                  variant: DotButtonStyle.secondary,
                   label: 'Opnieuw versturen',
-                  color: DotColors.amber,
+                  color: DotColors.warning(context),
                   onPressed: () => engine.retry(item.id),
                 ),
-              BrutalButton(
+              DotButton(
+                variant: DotButtonStyle.secondary,
                 label: 'Volledige details',
-                color: DotColors.coral,
+                color: Theme.of(context).colorScheme.primary,
                 onPressed: () =>
                     Navigator.pushNamed(context, '/item', arguments: item.id),
               ),
@@ -292,22 +293,26 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         child: Scaffold(
           backgroundColor: Theme.of(context).brightness == Brightness.dark
               ? DotColors.bgDark
-              : DotColors.paper,
+              : DotColors.bg,
           appBar: AppBar(
-            title: const Text(
-              'DOT',
-              style: TextStyle(fontFamily: 'ArchivoBlack'),
-            ),
+            title: const Text('DOT', style: TextStyle(fontFamily: 'Inter')),
             backgroundColor: Colors.transparent,
             elevation: 0,
             actions: [
+              if (isMac)
+                DotButton(
+                  variant: DotButtonStyle.primary,
+                  label: 'Toevoegen',
+                  icon: Icons.add,
+                  onPressed: _showAddModal,
+                ),
               IconButton(
-                icon: const Icon(Icons.devices),
+                icon: const Icon(Icons.devices_outlined),
                 tooltip: 'Apparaten',
                 onPressed: () => Navigator.pushNamed(context, '/devices'),
               ),
               IconButton(
-                icon: const Icon(Icons.settings),
+                icon: const Icon(Icons.settings_outlined),
                 tooltip: 'Instellingen',
                 onPressed: () => Navigator.pushNamed(context, '/settings'),
               ),
@@ -327,13 +332,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     ),
                   ),
                 ),
-                // StatusBar below dots
+                // StatusLine below dots
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
+                    horizontal: 20.0,
                     vertical: 4.0,
                   ),
-                  child: StatusBar(
+                  child: StatusLine(
                     status: engine.status,
                     peerName: engine.peerName,
                   ),
@@ -373,12 +378,34 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               ],
             ),
           ),
-          floatingActionButton: FloatingActionButton(
-            backgroundColor: DotColors.coral,
-            foregroundColor: DotColors.ink,
-            onPressed: _showAddModal,
-            child: const Icon(Icons.add, size: 28),
-          ),
+          floatingActionButton: isMac
+              ? null
+              : Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: .22),
+                        blurRadius: 20,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  width: 60,
+                  height: 60,
+                  child: FloatingActionButton(
+                    elevation: 0,
+                    highlightElevation: 0,
+                    focusElevation: 0,
+                    hoverElevation: 0,
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    onPressed: _showAddModal,
+                    shape: const CircleBorder(),
+                    child: const Icon(Icons.add, size: 28),
+                  ),
+                ),
         ),
       ),
     );
@@ -417,12 +444,7 @@ class _AddModalSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
     final theme = Theme.of(context);
-    final ink = theme.brightness == Brightness.dark
-        ? DotColors.paper
-        : DotColors.ink;
-    final surface = theme.brightness == Brightness.dark
-        ? DotColors.surfaceDark
-        : DotColors.paper;
+    final surface = theme.colorScheme.surface;
 
     return Container(
       padding: EdgeInsets.only(
@@ -434,15 +456,31 @@ class _AddModalSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: ink, width: 2),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (MediaQuery.sizeOf(context).width <= 800) ...[
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.dividerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
           const Text(
             'Toevoegen',
-            style: TextStyle(fontFamily: 'ArchivoBlack', fontSize: 24),
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 16),
           ListTile(
@@ -516,10 +554,7 @@ class _AddModalSheet extends StatelessWidget {
           controller: controller,
           maxLines: 4,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Typ je bericht…',
-            border: OutlineInputBorder(),
-          ),
+          decoration: const InputDecoration(hintText: 'Typ je bericht…'),
         ),
         actions: [
           TextButton(
@@ -550,10 +585,7 @@ class _AddModalSheet extends StatelessWidget {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'https://example.com',
-            border: OutlineInputBorder(),
-          ),
+          decoration: const InputDecoration(hintText: 'https://example.com'),
         ),
         actions: [
           TextButton(
@@ -593,19 +625,13 @@ class _AddModalSheet extends StatelessWidget {
             TextField(
               controller: titleCtrl,
               autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'Titel',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(hintText: 'Titel'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: bodyCtrl,
               maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: 'Inhoud…',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(hintText: 'Inhoud…'),
             ),
           ],
         ),

@@ -119,14 +119,15 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
   fonts:
-    - family: ArchivoBlack
+    - family: Inter
       fonts:
-        - asset: assets/fonts/ArchivoBlack-Regular.ttf
-    - family: SpaceGrotesk
-      fonts:
-        - asset: assets/fonts/SpaceGrotesk.ttf
+        - asset: assets/fonts/Inter.ttf
 
 flutter_launcher_icons:
   android: true
-  macos: true
-  image_path: assets/icons/dot_tray_template.svg
+  macos:
+    generate: true
+    image_path: assets/icons/dot_icon_macos.png
+  image_path: assets/icons/dot_icon.png
+  adaptive_icon_background: '#FFFFFF'
+  adaptive_icon_foreground: assets/icons/dot_foreground.png

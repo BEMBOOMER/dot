@@ -8,7 +8,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/sync_engine.dart';
 import '../../core/settings_store.dart';
 import '../../core/models.dart';
-import '../widgets/brutal_widgets.dart';
+import '../widgets/dot_widgets.dart';
 import '../dots/dots_stage.dart';
 import '../theme/dot_theme.dart';
 
@@ -127,7 +127,7 @@ class _PairScreenState extends State<PairScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text(
           'Bevestig koppeling',
-          style: TextStyle(fontFamily: 'ArchivoBlack'),
+          style: TextStyle(fontFamily: 'Inter'),
         ),
         content: Text('Wil je verbinden met ${request.deviceName}?'),
         actions: [
@@ -233,10 +233,10 @@ class _PairScreenState extends State<PairScreen> {
           children: [
             const Text('Geen koppelverzoek beschikbaar'),
             const SizedBox(height: 16),
-            BrutalButton(
+            DotButton(
               onPressed: () => _initHostMode(context.read<SyncEngine>()),
               label: 'Opnieuw proberen',
-              color: DotColors.coral,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ],
         ),
@@ -244,9 +244,6 @@ class _PairScreenState extends State<PairScreen> {
     }
 
     final theme = Theme.of(context);
-    final inkColor = theme.brightness == Brightness.dark
-        ? DotColors.paper
-        : DotColors.ink;
     final minutes = _timeLeft.inMinutes;
     final seconds = (_timeLeft.inSeconds % 60).toString().padLeft(2, '0');
 
@@ -274,11 +271,7 @@ class _PairScreenState extends State<PairScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: inkColor, width: 2),
-                  boxShadow: [
-                    BoxShadow(color: inkColor, offset: const Offset(4, 4)),
-                  ],
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: QrImageView(
                   data: _offer!.qrPayload,
@@ -312,9 +305,9 @@ class _PairScreenState extends State<PairScreen> {
               ),
               const SizedBox(height: 12),
               if (expired)
-                BrutalButton(
+                DotButton(
                   label: 'Nieuwe code',
-                  color: DotColors.coral,
+                  color: Theme.of(context).colorScheme.primary,
                   onPressed: () => _initHostMode(context.read<SyncEngine>()),
                 )
               else
@@ -336,7 +329,7 @@ class _PairScreenState extends State<PairScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                BrutalCard(
+                DotCard(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
@@ -345,18 +338,18 @@ class _PairScreenState extends State<PairScreen> {
                         Text(
                           'Verbinden met ${_preview!.peerName} op ${_preview!.host}',
                           style: const TextStyle(
-                            fontFamily: 'ArchivoBlack',
+                            fontFamily: 'Inter',
                             fontSize: 22,
                           ),
                         ),
                         const SizedBox(height: 24),
-                        BrutalButton(
+                        DotButton(
                           onPressed: _isLoading ? null : _confirmPairingClient,
                           label: 'Bevestig koppeling',
-                          color: DotColors.coral,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                         const SizedBox(height: 16),
-                        BrutalButton(
+                        DotButton(
                           onPressed: _isLoading
                               ? null
                               : () => setState(() {
@@ -396,23 +389,26 @@ class _PairScreenState extends State<PairScreen> {
         children: [
           const Text(
             'Scan QR-code',
-            style: TextStyle(fontFamily: 'ArchivoBlack', fontSize: 24),
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 16),
           Container(
             height: 260,
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? DotColors.paper
-                    : DotColors.ink,
-                width: 2,
-              ),
-              borderRadius: BorderRadius.circular(18),
-            ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18)),
             clipBehavior: Clip.hardEdge,
             child: MobileScanner(
               controller: _scannerController,
+              errorBuilder: (context, error) => ColoredBox(
+                color: Theme.of(context).colorScheme.surface,
+                child: const EmptyState(
+                  icon: Icons.camera_alt_outlined,
+                  message: 'Camera niet beschikbaar. Geef DOT cameratoegang of verbind handmatig.',
+                ),
+              ),
               onDetect: (capture) {
                 final List<Barcode> barcodes = capture.barcodes;
                 if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
@@ -425,7 +421,11 @@ class _PairScreenState extends State<PairScreen> {
           const SizedBox(height: 32),
           const Text(
             'Handmatig verbinden',
-            style: TextStyle(fontFamily: 'ArchivoBlack', fontSize: 24),
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -433,9 +433,6 @@ class _PairScreenState extends State<PairScreen> {
             decoration: const InputDecoration(
               labelText: 'Adres (IP:poort)',
               hintText: '192.168.1.20:48620',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(18)),
-              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -444,13 +441,10 @@ class _PairScreenState extends State<PairScreen> {
             decoration: const InputDecoration(
               labelText: 'Code',
               hintText: 'ABC123',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(18)),
-              ),
             ),
           ),
           const SizedBox(height: 24),
-          BrutalButton(
+          DotButton(
             onPressed: _isLoading
                 ? null
                 : () {
@@ -467,7 +461,7 @@ class _PairScreenState extends State<PairScreen> {
                     _previewPairingClient(payload);
                   },
             label: 'Verbinden',
-            color: DotColors.coral,
+            color: Theme.of(context).colorScheme.primary,
           ),
           if (_clientError != null) ...[
             const SizedBox(height: 16),
@@ -486,20 +480,22 @@ class _PairScreenState extends State<PairScreen> {
     final engine = context.watch<SyncEngine>();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final paperColor = isDark ? DotColors.bgDark : DotColors.paper;
+    final paperColor = isDark ? DotColors.bgDark : DotColors.bg;
 
     return Scaffold(
       backgroundColor: paperColor,
       appBar: AppBar(
         title: const Text(
           'Apparaat koppelen',
-          style: TextStyle(fontFamily: 'ArchivoBlack'),
+          style: TextStyle(fontFamily: 'Inter'),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: SafeArea(
-        child: engine.isHost ? _buildHostView() : _buildClientView(),
+      body: ScreenContent(
+        child: SafeArea(
+          child: engine.isHost ? _buildHostView() : _buildClientView(),
+        ),
       ),
     );
   }

@@ -14,6 +14,7 @@ import 'ui/screens/workspace_screen.dart';
 import 'ui/screens/item_detail_screen.dart';
 import 'ui/screens/devices_screen.dart';
 import 'ui/screens/settings_screen.dart';
+import 'ui/theme/dot_theme.dart';
 
 class DotApp extends StatefulWidget {
   final AppState state;
@@ -45,27 +46,6 @@ class _DotAppState extends State<DotApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  ThemeData _theme(Brightness brightness) {
-    final dark = brightness == Brightness.dark;
-    return ThemeData(
-      brightness: brightness,
-      fontFamily: 'SpaceGrotesk',
-      scaffoldBackgroundColor: dark
-          ? const Color(0xFF121212)
-          : const Color(0xFFF5F0E8),
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFFFF4F81),
-        brightness: brightness,
-      ),
-      textTheme: TextTheme(
-        headlineLarge: TextStyle(
-          fontFamily: 'ArchivoBlack',
-          color: dark ? const Color(0xFFF5F0E8) : const Color(0xFF1A1A1A),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.state,
@@ -85,8 +65,8 @@ class _DotAppState extends State<DotApp> with WidgetsBindingObserver {
         builder: (context, settings, _) => MaterialApp(
           title: 'DOT',
           debugShowCheckedModeBanner: false,
-          theme: _theme(Brightness.light),
-          darkTheme: _theme(Brightness.dark),
+          theme: lightTheme,
+          darkTheme: darkTheme,
           themeMode: settings.themeMode,
           initialRoute: settings.onboarded ? '/workspace' : '/welcome',
           routes: {

@@ -15,10 +15,10 @@ class DotSphere extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // 1. Soft contact shadow below the sphere
     final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.15)
+      ..color = Colors.black.withValues(alpha: 0.1)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.4);
     final shadowRect = Rect.fromCenter(
-      center: Offset(center.dx, center.dy + radius * 0.4),
+      center: Offset(center.dx, center.dy + radius * 1.05),
       width: radius * 1.8,
       height: radius * 0.6,
     );
@@ -32,8 +32,13 @@ class DotSphere extends CustomPainter {
 
     final basePaint = Paint()
       ..shader = RadialGradient(
-        colors: [baseColor, darkerColor],
-        stops: const [0.3, 1.0],
+        center: const Alignment(-0.4, -0.5),
+        colors: [
+          Color.lerp(baseColor, Colors.white, .35)!,
+          baseColor,
+          darkerColor,
+        ],
+        stops: const [0, .5, 1.0],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
     canvas.drawCircle(center, radius, basePaint);
 

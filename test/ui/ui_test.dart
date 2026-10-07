@@ -10,12 +10,13 @@ import 'package:dot/core/models.dart';
 import 'package:dot/core/settings_store.dart';
 import 'package:dot/core/sync_engine.dart';
 import 'package:dot/ui/dots/dots_stage.dart';
+import 'package:dot/ui/theme/dot_theme.dart';
 import 'package:dot/ui/screens/item_detail_screen.dart';
 import 'package:dot/ui/screens/settings_screen.dart';
 import 'package:dot/ui/screens/pair_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:dot/ui/screens/workspace_screen.dart';
-import 'package:dot/ui/widgets/brutal_widgets.dart';
+import 'package:dot/ui/widgets/dot_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,6 +81,8 @@ void main() {
         ChangeNotifierProvider<SettingsStore>.value(value: state.settings),
       ],
       child: MaterialApp(
+        theme: lightTheme,
+        darkTheme: darkTheme,
         onGenerateRoute: (_) => MaterialPageRoute<void>(
           settings: RouteSettings(arguments: itemId),
           builder: (_) => screen,
@@ -165,7 +168,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Bevestig koppeling'), findsOneWidget);
     expect(find.text('Annuleren'), findsOneWidget);
-    expect(find.byType(BrutalCard), findsOneWidget);
+    expect(find.byType(DotCard), findsOneWidget);
     expect(
       find.textContaining('Verbinden met Demo-apparaat op'),
       findsOneWidget,
@@ -196,7 +199,7 @@ void main() {
     );
     expect(
       tester.widget<Text>(find.text('Instellingen')).style?.fontFamily,
-      'ArchivoBlack',
+      'Inter',
     );
   });
 

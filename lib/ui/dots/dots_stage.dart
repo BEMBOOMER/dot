@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
 import 'dot_sphere.dart';
+import '../theme/dot_theme.dart';
 
 class DotsStage extends StatefulWidget {
   final ConnectionStatus status;
@@ -34,6 +35,7 @@ class DotsStageState extends State<DotsStage>
   late AnimationController _receivePulseController;
 
   late ConnectionStatus _previousStatus;
+  late AnimationController _glowController;
 
   @override
   void initState() {
@@ -46,12 +48,12 @@ class DotsStageState extends State<DotsStage>
 
     _transitionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 300),
     );
 
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 300),
     );
 
     _receivePulseController = AnimationController(
@@ -59,6 +61,11 @@ class DotsStageState extends State<DotsStage>
       duration: const Duration(milliseconds: 200),
     );
 
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+      value: 1,
+    );
     _previousStatus = widget.status;
   }
 
@@ -67,6 +74,10 @@ class DotsStageState extends State<DotsStage>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.status != widget.status) {
       _previousStatus = oldWidget.status;
+      if (widget.status == ConnectionStatus.connected &&
+          !widget.reducedMotion) {
+        _glowController.forward(from: 0);
+      }
       if (widget.reducedMotion) {
         _transitionController.value = 1;
       } else {
@@ -78,6 +89,7 @@ class DotsStageState extends State<DotsStage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _glowController.dispose();
     _ambientController.dispose();
     _transitionController.dispose();
     _pulseController.dispose();
@@ -118,6 +130,8 @@ class DotsStageState extends State<DotsStage>
         widget.reducedMotion ||
         !tickerMode) {
       _ambientController.stop();
+      _glowController.stop();
+      _glowController.value = 1;
       _pulseController.stop();
       _receivePulseController.stop();
       _transitionController.stop();
@@ -136,6 +150,7 @@ class DotsStageState extends State<DotsStage>
 
         return AnimatedBuilder(
           animation: Listenable.merge([
+            _glowController,
             _ambientController,
             _transitionController,
             _pulseController,
@@ -145,10 +160,16 @@ class DotsStageState extends State<DotsStage>
             return CustomPaint(
               size: size,
               painter: _DotsStagePainter(
+                accent: Theme.of(context).colorScheme.primary,
+                peer: Theme.of(context).colorScheme.onSurface
+                    .withValues(alpha: .9),
+                muted: DotColors.secondary(context),
+                success: DotColors.success(context),
+                glow: widget.reducedMotion ? 0 : 1 - _glowController.value,
                 status: widget.status,
                 previousStatus: _previousStatus,
                 ambientValue: _ambientController.value,
-                transitionValue: Curves.easeInOut.transform(
+                transitionValue: Curves.easeOutCubic.transform(
                   _transitionController.value,
                 ),
                 pulseValue: _pulseController.value,
@@ -172,12 +193,15 @@ class _DotsStagePainter extends CustomPainter {
   final double receivePulseValue;
   final bool reducedMotion;
 
-  static const Color coral = Color(0xFFFF4F81);
-  static const Color lime = Color(0xFFCCFF00);
-  static const Color mutedRed = Color(0xFFB05060);
-  static const Color mutedGrey = Color(0xFF888888);
+  final Color accent, peer, muted, success;
+  final double glow;
 
   _DotsStagePainter({
+    required this.accent,
+    required this.peer,
+    required this.muted,
+    required this.success,
+    required this.glow,
     required this.status,
     required this.previousStatus,
     required this.ambientValue,
@@ -252,6 +276,18 @@ class _DotsStagePainter extends CustomPainter {
       }
     }
 
+    if (glow > 0 && status == ConnectionStatus.connected) {
+      final paint = Paint()
+        ..color = success.withValues(alpha: glow * .25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      canvas.drawCircle(ambientLeft, leftRadius + 3, paint);
+      canvas.drawCircle(ambientRight, rightRadius + 3, paint);
+    }
+    if (status == ConnectionStatus.connected &&
+        transitionValue < 1 &&
+        !reducedMotion) {
+      ambientLeftScale += math.sin(transitionValue * math.pi) * .08;
+    }
     double rightDotScale = 1.0 + (receivePulseValue * 0.2);
 
     if (leftOpacity > 0.01) {
@@ -272,10 +308,10 @@ class _DotsStagePainter extends CustomPainter {
 
     if (pulseValue > 0.0 && pulseValue < 1.0 && !reducedMotion) {
       final pulsePos = Offset.lerp(ambientLeft, ambientRight, pulseValue)!;
-      final pulseColor = Color.lerp(coral, lime, pulseValue)!;
+      final pulseColor = accent;
       DotSphere(
         baseColor: pulseColor,
-        radius: baseRadius * 0.3,
+        radius: 7,
         center: pulsePos,
       ).paint(canvas, size);
     }
@@ -283,10 +319,10 @@ class _DotsStagePainter extends CustomPainter {
     if (status == ConnectionStatus.syncing && !reducedMotion) {
       final syncValue = (ambientValue * 2.0) % 1.0;
       final pulsePos = Offset.lerp(ambientLeft, ambientRight, syncValue)!;
-      final pulseColor = Color.lerp(coral, lime, syncValue)!;
+      final pulseColor = accent;
       DotSphere(
         baseColor: pulseColor,
-        radius: baseRadius * 0.25,
+        radius: 7,
         center: pulsePos,
       ).paint(canvas, size);
     }
@@ -302,7 +338,7 @@ class _DotsStagePainter extends CustomPainter {
     double baseRadius,
   ) {
     final center = Offset(size.width / 2, size.height / 2);
-    final gap = size.width * 0.2;
+    final gap = baseRadius * 4;
 
     switch (stat) {
       case ConnectionStatus.unpaired:
@@ -311,8 +347,8 @@ class _DotsStagePainter extends CustomPainter {
           rightCenter: center,
           leftRadius: baseRadius,
           rightRadius: baseRadius * 0.1,
-          leftColor: coral,
-          rightColor: coral,
+          leftColor: accent,
+          rightColor: peer,
           leftOpacity: 1.0,
           rightOpacity: 0.0,
         );
@@ -322,8 +358,8 @@ class _DotsStagePainter extends CustomPainter {
           rightCenter: Offset(center.dx + gap / 2, center.dy),
           leftRadius: baseRadius * 0.8,
           rightRadius: baseRadius * 0.8,
-          leftColor: coral,
-          rightColor: coral,
+          leftColor: accent,
+          rightColor: peer,
           leftOpacity: 1.0,
           rightOpacity: 1.0,
         );
@@ -333,31 +369,31 @@ class _DotsStagePainter extends CustomPainter {
           rightCenter: Offset(center.dx + gap / 4, center.dy),
           leftRadius: baseRadius * 0.9,
           rightRadius: baseRadius * 0.9,
-          leftColor: coral,
-          rightColor: coral,
+          leftColor: accent,
+          rightColor: peer,
           leftOpacity: 1.0,
           rightOpacity: 1.0,
         );
       case ConnectionStatus.connected:
       case ConnectionStatus.syncing:
         return _DotLayout(
-          leftCenter: Offset(center.dx - gap / 8, center.dy),
-          rightCenter: Offset(center.dx + gap / 8, center.dy),
+          leftCenter: Offset(center.dx - gap / 4, center.dy),
+          rightCenter: Offset(center.dx + gap / 4, center.dy),
           leftRadius: baseRadius,
           rightRadius: baseRadius,
-          leftColor: lime,
-          rightColor: lime,
+          leftColor: accent,
+          rightColor: peer,
           leftOpacity: 1.0,
           rightOpacity: 1.0,
         );
       case ConnectionStatus.offline:
         return _DotLayout(
-          leftCenter: Offset(center.dx - gap * 1.5, center.dy),
-          rightCenter: Offset(center.dx + gap * 1.5, center.dy),
+          leftCenter: Offset(center.dx - gap * .7, center.dy),
+          rightCenter: Offset(center.dx + gap * .7, center.dy),
           leftRadius: baseRadius * 0.7,
           rightRadius: baseRadius * 0.7,
-          leftColor: mutedGrey,
-          rightColor: mutedGrey,
+          leftColor: accent,
+          rightColor: peer,
           leftOpacity: 0.6,
           rightOpacity: 0.6,
         );
@@ -367,8 +403,8 @@ class _DotsStagePainter extends CustomPainter {
           rightCenter: Offset(center.dx + gap, center.dy),
           leftRadius: baseRadius * 0.8,
           rightRadius: baseRadius * 0.8,
-          leftColor: mutedRed,
-          rightColor: mutedRed,
+          leftColor: accent,
+          rightColor: muted,
           leftOpacity: 1.0,
           rightOpacity: 1.0,
         );
@@ -377,7 +413,10 @@ class _DotsStagePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DotsStagePainter oldDelegate) {
-    return oldDelegate.status != status ||
+    return oldDelegate.accent != accent ||
+        oldDelegate.peer != peer ||
+        oldDelegate.glow != glow ||
+        oldDelegate.status != status ||
         oldDelegate.previousStatus != previousStatus ||
         oldDelegate.ambientValue != ambientValue ||
         oldDelegate.transitionValue != transitionValue ||
