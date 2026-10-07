@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.3]
+
+- Mac: de app is nu vast ondertekend. Toegang voor Toegankelijkheid blijft na updates behouden (na deze update nog een laatste keer opnieuw toestaan).
+
 ## [0.2.2]
 
 - Downloads hebben nu duidelijke namen (`DOT-0.2.2.dmg`, `DOT-0.2.2.apk`) en een controlesom die je direct kunt controleren.

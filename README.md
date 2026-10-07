@@ -63,9 +63,8 @@ Geef DOT daarna toegang tot Toegankelijkheid:
    voeg DOT toe.
 3. Zet DOT aan in de lijst.
 
-Na een update van de Mac-app moet je DOT uit deze lijst verwijderen en opnieuw
-toevoegen. DOT is nog niet ondertekend met een Apple-ontwikkelaarscertificaat,
-waardoor macOS de toestemming aan de nieuwe app-versie niet altijd overneemt.
+Vanaf v0.2.3 hoef je dit maar één keer te doen. Verplaats je van v0.2.2 of
+ouder, geef DOT na deze update nog één laatste keer opnieuw toestemming.
 
 Op Android vind je **Bediening** in de werkruimte. Daar kun je wisselen tussen
 **Trackpad**, **Presentatie** en **Media**. Alleen een gekoppelde telefoon kan
@@ -118,6 +117,16 @@ De releaseworkflow bouwt `DOT-<versie>.apk` en `DOT-<versie>.dmg`, maakt
 release notes. Zonder de Android-keystore wordt een niet-ondertekende APK met
 debug-signing fallback gemaakt. Notarization van de DMG is optioneel en
 gebruikt de Apple-secrets uit de workflow.
+
+Na de CI-release vervangt de maker de Mac-download lokaal met de stabiel
+ondertekende versie:
+
+```sh
+scripts/publish_signed_mac.sh <tag>
+```
+
+Deze ondertekening zorgt ervoor dat macOS de Toegankelijkheidstoestemming bij
+updates behoudt.
 
 ## Licentie
 
