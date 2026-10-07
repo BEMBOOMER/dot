@@ -8,6 +8,7 @@ import 'package:dot/core/fake_sync_engine.dart';
 import 'package:dot/core/item_repository.dart';
 import 'package:dot/core/settings_store.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -18,8 +19,14 @@ void main() {
   late AppState state;
   late Database database;
   late Directory directory;
+  const inputChannel = MethodChannel('dot/input');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   setUp(() async {
+    messenger.setMockMethodCallHandler(inputChannel, (call) async {
+      return call.method != 'isTrusted';
+    });
     databaseFactory = databaseFactoryFfi;
     SharedPreferences.setMockInitialValues({});
     directory = await Directory.systemTemp.createTemp('dot-smoke-');
@@ -46,6 +53,7 @@ void main() {
   });
 
   tearDown(() async {
+    messenger.setMockMethodCallHandler(inputChannel, null);
     // DotApp owns and disposes AppState when the test unmounts it.
     await database.close();
     await directory.delete(recursive: true);

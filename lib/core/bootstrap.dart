@@ -10,6 +10,7 @@ import 'fake_sync_engine.dart';
 import 'item_repository.dart';
 import 'settings_store.dart';
 import 'sync_engine.dart';
+import '../platform/mac_migration.dart';
 
 class EngineContext {
   final ItemRepository repository;
@@ -43,8 +44,9 @@ SyncEngine createDemoEngine(EngineContext context) => FakeSyncEngine(
 );
 
 Future<AppState> bootstrap({SyncEngineFactory? engineFactory}) async {
-  final prefs = await SharedPreferences.getInstance();
   final support = await getApplicationSupportDirectory();
+  await migrateMacData(support);
+  final prefs = await SharedPreferences.getInstance();
   await support.create(recursive: true);
   final db = await DotDatabase.open();
   try {

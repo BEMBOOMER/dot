@@ -75,7 +75,56 @@ binary: [36 bytes item id ascii][8 bytes big-endian offset][chunk ≤ 256 KiB]
 { "t": "file_cancel", "id" }
 { "t": "unpair", "deviceId" }
 { "t": "ping" } / { "t": "pong" }
+{ "t": "input", "k": "move", "dx": 1.5, "dy": -2.0 }
+{ "t": "input", "k": "click", "b": "left"|"right", "n": 1|2 }
+{ "t": "input", "k": "drag", "s": "down"|"up" }
+{ "t": "input", "k": "scroll", "dx": 0.0, "dy": 10.0 }
+{ "t": "input", "k": "key", "key": "next"|"prev"|"start"|"start_keynote"|"end"|"blackout"|"escape"|"space" }
+{ "t": "input", "k": "media", "m": "playpause"|"next"|"prev"|"volup"|"voldown"|"mute" }
+{ "t": "input_status", "enabled": true, "trusted": false }
 ```
+
+### Remote input (v0.2)
+- `input` is client-to-host only, ephemeral, fire-and-forget: no persistence,
+  acknowledgment, replay, item, outbox or retry. Both peers must have completed
+  authenticated `hello`. The host rechecks that the peer is still paired, that
+  `settings.remoteControl` is enabled (default true), and that its input sink is
+  trusted. Input from other sessions or in the wrong direction is ignored.
+- Strict schemas accept only the fields shown above. Deltas are finite numbers,
+  already scaled by the phone, in points for movement and pixels for scrolling.
+  The sending API clamps each delta to [-2000, 2000]; incoming values outside that
+  range, incorrect types, extra fields and unknown kinds/values are dropped.
+  Click count must be a JSON integer 1 or 2. Input contents are never logged.
+- Each session permits at most 240 input frames in a rolling one-second window,
+  measured on arrival with a monotonic clock. Excess frames are dropped without
+  closing the connection. Input bypasses the durable item/file-processing queue
+  so file transfers do not accumulate stale gestures.
+- The host sends `input_status` immediately after authenticated `hello` and when
+  either setting or Accessibility trust changes (trust is polled every 2 seconds).
+  `SyncEngine.remoteStatus` exposes `enabled`, `trusted` and local `available`:
+  on the host `available` means an input sink exists; on the client it means a
+  connected host has advertised this capability. Disconnect resets client status.
+  A host without this capability does not send `input_status`. `sendInput` is a
+  no-op while disconnected or when the advertised capability is disabled/untrusted.
+- Presentation mapping: `next` = Right (124), `prev` = Left (123), `end` and
+  `escape` = Escape (53), `blackout` = B (11), `space` = Space (49), `start` =
+  Cmd+Return (36), `start_keynote` = Cmd+Option+P (35). PowerPoint's dedicated
+  shortcut Cmd+Shift+Return will require a future app hint; `start` currently
+  uses the generic Cmd+Return fallback.
+- `InputSink` is the injectable execution boundary. `MacInput` uses `dot/input`
+  and native CGEvent/NSEvent posting, with a fresh Accessibility check on every
+  execution. Disabling control, disconnecting, revoking trust or replacing a
+  session releases any held left button. Demo mode advertises no real input.
+- The macOS app must run without App Sandbox to post input to other applications.
+  Before preferences, identity and database loading, startup copies legacy
+  container data without moving or overwriting existing data. sqflite_darwin
+  uses Documents for `dot.db`; Application Support contains `secrets/` and
+  `files/`. SQLite sidecars and the preferences plist are copied too; `dot/migration`
+  reloads the target plist into Foundation before shared_preferences reads it.
+  Interrupted copies resume on next startup; failures abort startup to preserve
+  pairing trust. macOS uses
+  private secret files directly (0700 directory, 0600 files), without keychain
+  reads or writes. Android keeps its existing secure-storage behavior.
 
 ## Pairing & trust
 - macOS is the host (TLS server, advertises `_dotlink._tcp` with TXT `id=<deviceId>`). Android is the client.

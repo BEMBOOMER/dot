@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +10,7 @@ import '../../core/settings_store.dart';
 import '../widgets/dot_widgets.dart';
 import '../../platform/update_checker.dart';
 import '../../platform/login_item.dart';
+import '../../platform/mac_input.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
@@ -107,6 +109,14 @@ class SettingsScreen extends StatelessWidget {
                       },
                     ),
                   ),
+                  const Divider(),
+                  _buildSectionHeader(context, 'Bediening op afstand'),
+                  SwitchListTile(
+                    title: const Text('Bediening op afstand'),
+                    value: settings.remoteControl,
+                    onChanged: (value) => settings.remoteControl = value,
+                  ),
+                  const _MacInputAccess(),
                 ],
 
                 const Divider(),
@@ -321,6 +331,103 @@ class SettingsScreen extends StatelessWidget {
       appState.clearHistory();
     }
   }
+}
+
+class _MacInputAccess extends StatefulWidget {
+  const _MacInputAccess();
+  @override
+  State<_MacInputAccess> createState() => _MacInputAccessState();
+}
+
+class _MacInputAccessState extends State<_MacInputAccess>
+    with WidgetsBindingObserver {
+  Timer? _timer;
+  bool _trusted = false;
+  bool _polling = false;
+  bool _requesting = false;
+  bool _disposed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _resumePolling();
+  }
+
+  void _resumePolling() {
+    if (!mounted || _disposed) return;
+    _stopPolling();
+    // Register the timer before starting native work so disposal always owns
+    // every timer, including reentrant lifecycle changes during a poll.
+    _timer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted || _disposed) {
+        _stopPolling();
+        return;
+      }
+      // A pushed route can keep this widget mounted but no longer visible.
+      if (ModalRoute.of(context)?.isCurrent == true) unawaited(_poll());
+    });
+    unawaited(_poll());
+  }
+
+  void _stopPolling() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  Future<void> _poll() async {
+    if (!mounted || _disposed || _polling) return;
+    _polling = true;
+    try {
+      final trusted = await MacInput.isTrusted();
+      if (!mounted || _disposed) return;
+      if (trusted != _trusted) setState(() => _trusted = trusted);
+    } finally {
+      if (mounted && !_disposed) _polling = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted || _disposed) return;
+    if (state == AppLifecycleState.resumed) {
+      _resumePolling();
+    } else {
+      _stopPolling();
+    }
+  }
+
+  Future<void> _request() async {
+    if (!mounted || _disposed || _requesting) return;
+    setState(() => _requesting = true);
+    try {
+      await MacInput.requestTrust();
+      if (!mounted || _disposed) return;
+      await MacInput.openAccessibilitySettings();
+      if (!mounted || _disposed) return;
+      await _poll();
+    } finally {
+      if (mounted && !_disposed) setState(() => _requesting = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _stopPolling();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    title: Text('Toegang tot toegankelijkheid: ${_trusted ? 'aan' : 'uit'}'),
+    trailing: DotButton(
+      variant: DotButtonStyle.ghost,
+      label: 'Geef toegang',
+      onPressed: _requesting ? null : _request,
+    ),
+  );
 }
 
 class _SettingsHeading extends StatelessWidget {

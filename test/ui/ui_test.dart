@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -33,8 +34,18 @@ void main() {
   late Directory directory;
   late Database originalDatabase;
   bool appOwnsState = false;
+  const inputChannel = MethodChannel('dot/input');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  final inputCalls = <String>[];
 
   setUp(() async {
+    inputCalls.clear();
+    // Every app/settings test gets a prompt native reply, including demo mode.
+    messenger.setMockMethodCallHandler(inputChannel, (call) async {
+      inputCalls.add(call.method);
+      return call.method != 'isTrusted';
+    });
     appOwnsState = false;
     databaseFactory = databaseFactoryFfi;
     SharedPreferences.setMockInitialValues({});
@@ -64,6 +75,7 @@ void main() {
   });
 
   tearDown(() async {
+    messenger.setMockMethodCallHandler(inputChannel, null);
     if (!appOwnsState) {
       await state.engine.stop();
       state.dispose();
@@ -330,6 +342,7 @@ void main() {
   testWidgets('settings restrict desktop controls to macOS', (tester) async {
     await prepare(tester);
     const loginItemChannel = MethodChannel('dot/login_item');
+    var trustChecks = 0;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(loginItemChannel, (call) async {
@@ -343,6 +356,10 @@ void main() {
         default:
           return null;
       }
+    });
+    messenger.setMockMethodCallHandler(inputChannel, (call) async {
+      if (call.method == 'isTrusted') trustChecks++;
+      return call.method != 'isTrusted';
     });
     addTearDown(() {
       messenger.setMockMethodCallHandler(loginItemChannel, null);
@@ -362,10 +379,131 @@ void main() {
       Platform.isMacOS ? findsOneWidget : findsNothing,
     );
     expect(
+      find.text('Bediening op afstand'),
+      Platform.isMacOS ? findsNWidgets(2) : findsNothing,
+    );
+    expect(
       tester.widget<Text>(find.text('Instellingen')).style?.fontFamily,
       'Inter',
     );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    final checksAfterDispose = trustChecks;
+    await tester.pump(const Duration(seconds: 3));
+    expect(trustChecks, checksAfterDispose);
+    expect(find.byType(SettingsScreen), findsNothing);
+    expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'macOS remote setting polls trust and opens Accessibility settings',
+    (tester) async {
+      await prepare(tester);
+      const channel = MethodChannel('dot/input');
+      final calls = <String>[];
+      var trusted = false;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        return call.method == 'isTrusted' ? trusted : true;
+      });
+      await tester.pumpWidget(harness(const SettingsScreen()));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.text('Toegang tot toegankelijkheid: uit'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Geef toegang'));
+      await tester.pumpAndSettle();
+      expect(
+        calls,
+        containsAllInOrder(['requestTrust', 'openAccessibilitySettings']),
+      );
+      trusted = true;
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump();
+      expect(find.text('Toegang tot toegankelijkheid: aan'), findsOneWidget);
+      final toggle = find.widgetWithText(
+        SwitchListTile,
+        'Bediening op afstand',
+      );
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(state.settings.remoteControl, isFalse);
+      await tester.pumpWidget(const SizedBox());
+      final count = calls.length;
+      await tester.pump(const Duration(seconds: 3));
+      expect(calls.length, count);
+    },
+    skip: !Platform.isMacOS,
+  );
+
+  testWidgets('late trust poll cannot restart after settings disposal', (
+    tester,
+  ) async {
+    await prepare(tester);
+    const channel = MethodChannel('dot/input');
+    final pending = Completer<bool>();
+    var trustChecks = 0;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'isTrusted') {
+        trustChecks++;
+        return pending.future;
+      }
+      return true;
+    });
+    final lifecycle = tester.binding.lifecycleState;
+    addTearDown(() {
+      if (lifecycle != null) {
+        tester.binding.handleAppLifecycleStateChanged(lifecycle);
+      }
+    });
+    await tester.pumpWidget(harness(const SettingsScreen()));
+    await tester.pump();
+    expect(trustChecks, 1);
+    await tester.pumpWidget(const SizedBox());
+    pending.complete(true);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(seconds: 3));
+    expect(trustChecks, 1);
+    expect(tester.takeException(), isNull);
+  }, skip: !Platform.isMacOS);
+
+  testWidgets('late access request stops when settings has been disposed', (
+    tester,
+  ) async {
+    await prepare(tester);
+    const channel = MethodChannel('dot/input');
+    final pending = Completer<bool>();
+    final calls = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call.method);
+      if (call.method == 'requestTrust') return pending.future;
+      return false;
+    });
+    await tester.pumpWidget(harness(const SettingsScreen()));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Geef toegang'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Geef toegang'));
+    await tester.pump();
+    expect(calls, contains('requestTrust'));
+    await tester.pumpWidget(const SizedBox());
+    final callsAfterDispose = calls.length;
+    pending.complete(true);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    expect(calls.length, callsAfterDispose);
+    expect(calls, isNot(contains('openAccessibilitySettings')));
+    expect(tester.takeException(), isNull);
+  }, skip: !Platform.isMacOS);
 
   testWidgets('workspace renders items and each type chip filters', (
     tester,
@@ -572,7 +710,16 @@ void main() {
     await tester.tap(find.byTooltip('Instellingen'));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsScreen), findsOneWidget);
+    if (Platform.isMacOS) {
+      expect(inputCalls, contains('isTrusted'));
+      expect(find.text('Toegang tot toegankelijkheid: uit'), findsOneWidget);
+    }
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    final callsAfterDispose = inputCalls.length;
+    await tester.pump(const Duration(seconds: 3));
+    expect(inputCalls.length, callsAfterDispose);
   });
 }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -8,10 +9,14 @@ import 'sync/lan_sync_engine.dart';
 import 'platform/desktop_shell.dart';
 import 'platform/notifier.dart';
 import 'platform/share_intake.dart';
+import 'platform/mac_input.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  registerSyncEngineFactory(createLanEngine);
+  final inputSink = Platform.isMacOS ? MacInput() : null;
+  registerSyncEngineFactory(
+    (context) => createLanEngine(context, inputSink: inputSink),
+  );
   final state = await bootstrap();
   runApp(DotApp(state: state));
   // Optional integrations start after the UI has rendered its first frame.

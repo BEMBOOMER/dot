@@ -10,6 +10,36 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'macOS bypasses secure storage completely, including first launch',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'dot-file-secrets-',
+      );
+      final storage = _RejectKeychainStorage();
+      try {
+        final identity = await DeviceIdentity.load(
+          SecureSecretStore(directory, storage: storage),
+        );
+        final tls = await TlsCertificate.load(
+          SecureSecretStore(directory, storage: storage),
+        );
+        final restored = await DeviceIdentity.load(
+          SecureSecretStore(directory, storage: storage),
+        );
+        final restoredTls = await TlsCertificate.load(
+          SecureSecretStore(directory, storage: storage),
+        );
+        expect(restored.deviceId, identity.deviceId);
+        expect(restored.publicKey, identity.publicKey);
+        expect(restoredTls.fingerprint, tls.fingerprint);
+        expect(storage.calls, 0);
+      } finally {
+        await directory.delete(recursive: true);
+      }
+    },
+    skip: !Platform.isMacOS,
+  );
   test('hung keychain read falls back within five seconds', () async {
     final directory = await Directory.systemTemp.createTemp('dot-identity-');
     try {
@@ -62,6 +92,38 @@ void main() {
       }
     },
   );
+}
+
+class _RejectKeychainStorage extends FlutterSecureStorage {
+  int calls = 0;
+  @override
+  Future<String?> read({
+    required String key,
+    AppleOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    AppleOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async {
+    calls++;
+    throw StateError('Keychain must not be read on macOS');
+  }
+
+  @override
+  Future<void> write({
+    required String key,
+    required String? value,
+    AppleOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    AppleOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async {
+    calls++;
+    throw StateError('Keychain must not be written on macOS');
+  }
 }
 
 class _HungReadStorage extends FlutterSecureStorage {

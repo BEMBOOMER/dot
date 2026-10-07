@@ -15,7 +15,9 @@ abstract interface class SecretStore {
 class SecureSecretStore implements SecretStore {
   final FlutterSecureStorage storage;
   final Directory directory;
-  bool _fallback = false;
+  // Unsandboxed, ad-hoc signed macOS builds must never touch the keychain:
+  // even a read can display a blocking password/access dialog.
+  bool _fallback = Platform.isMacOS;
   SecureSecretStore(
     this.directory, {
     this.storage = const FlutterSecureStorage(),

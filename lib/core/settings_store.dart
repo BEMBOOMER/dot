@@ -25,6 +25,9 @@ class SettingsStore extends ChangeNotifier {
   bool get launchAtLogin => prefs.getBool('launchAtLogin') ?? false;
   set launchAtLogin(bool v) => _set(() => prefs.setBool('launchAtLogin', v));
 
+  bool get remoteControl => prefs.getBool('remoteControl') ?? true;
+  set remoteControl(bool v) => _set(() => prefs.setBool('remoteControl', v));
+
   bool get menuBarIcon => prefs.getBool('menuBarIcon') ?? true;
   set menuBarIcon(bool v) => _set(() => prefs.setBool('menuBarIcon', v));
 

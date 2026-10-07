@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'device_store.dart';
 import 'item_repository.dart';
 import 'models.dart';
+import 'remote_input.dart';
 import 'sync_engine.dart';
 
 /// Demo transport only: never discovers or contacts a real device.
@@ -36,6 +37,12 @@ class FakeSyncEngine extends SyncEngine {
   final Set<String> _cancelled = {};
   final _events = StreamController<SyncEvent>.broadcast();
   final _transfers = ValueNotifier<Map<String, double>>(const {});
+  // Demo mode never controls the real computer.
+  final _remoteStatus = ValueNotifier(const RemoteInputStatus());
+  @override
+  ValueListenable<RemoteInputStatus> get remoteStatus => _remoteStatus;
+  @override
+  void sendInput(RemoteInput input) {}
   @override
   ConnectionStatus get status => _status;
   @override
@@ -227,6 +234,7 @@ class FakeSyncEngine extends SyncEngine {
     ++_generation;
     _events.close();
     _transfers.dispose();
+    _remoteStatus.dispose();
     super.dispose();
   }
 }

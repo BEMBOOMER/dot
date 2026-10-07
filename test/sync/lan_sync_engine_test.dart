@@ -12,6 +12,7 @@ import 'package:dot/sync/client_connection.dart';
 import 'package:dot/sync/discovery.dart';
 import 'package:dot/sync/host_server.dart';
 import 'package:dot/sync/identity.dart';
+import 'package:dot/sync/input_sink.dart';
 import 'package:dot/sync/lan_sync_engine.dart';
 import 'package:dot/sync/tls_cert.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,6 +40,8 @@ class Fixture {
     Directory root, {
     required bool host,
     SecretStore? secrets,
+    InputSink? inputSink,
+    Duration Function()? inputClock,
   }) async {
     final db = await DotDatabase.open(
       factory: databaseFactoryFfi,
@@ -57,6 +60,8 @@ class Fixture {
       isHost: host,
       name: host ? 'MacBook' : 'Android',
       secrets: secrets ?? MemorySecretStore(),
+      inputSink: inputSink,
+      inputClock: inputClock,
       discovery: NoDiscovery(),
       bindAddress: '127.0.0.1',
       advertisedHost: '127.0.0.1',

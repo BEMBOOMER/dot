@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'models.dart';
+import 'remote_input.dart';
 
 abstract class SyncEngine extends ChangeNotifier {
   ConnectionStatus get status;
@@ -10,6 +11,8 @@ abstract class SyncEngine extends ChangeNotifier {
   String get localName;
   bool get isHost;
   ValueListenable<Map<String, double>> get transfers;
+  ValueListenable<RemoteInputStatus> get remoteStatus;
+  void sendInput(RemoteInput input);
   Stream<SyncEvent> get events;
   Future<void> start();
   Future<void> stop();

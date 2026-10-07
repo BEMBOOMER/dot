@@ -10,6 +10,7 @@ import '../core/bootstrap.dart';
 import '../core/device_store.dart';
 import '../core/item_repository.dart';
 import '../core/models.dart';
+import '../core/remote_input.dart';
 import '../core/settings_store.dart';
 import '../core/sync_engine.dart';
 import 'client_connection.dart';
@@ -17,18 +18,22 @@ import 'discovery.dart';
 import 'file_transfer.dart';
 import 'host_server.dart';
 import 'identity.dart';
+import 'input_rate_limiter.dart';
+import 'input_sink.dart';
 import 'protocol.dart';
 import 'tls_cert.dart';
 
-SyncEngine createLanEngine(EngineContext context) => LanSyncEngine(
-  repository: context.repository,
-  devices: context.devices,
-  settings: context.settings,
-  supportDirectory: context.supportDirectory,
-  initialDeviceId: context.localDeviceId,
-  name: context.localName,
-  isHost: context.isHost,
-);
+SyncEngine createLanEngine(EngineContext context, {InputSink? inputSink}) =>
+    LanSyncEngine(
+      repository: context.repository,
+      devices: context.devices,
+      settings: context.settings,
+      supportDirectory: context.supportDirectory,
+      initialDeviceId: context.localDeviceId,
+      name: context.localName,
+      isHost: context.isHost,
+      inputSink: inputSink,
+    );
 
 class _Session {
   final WebSocket socket;
@@ -47,7 +52,13 @@ class _Session {
   bool closed = false;
   Timer? deadline;
   Timer? heartbeat;
-  _Session(this.socket, {this.client, this.preview}) {
+  final InputRateLimiter inputLimiter;
+  _Session(
+    this.socket, {
+    this.client,
+    this.preview,
+    Duration Function()? inputClock,
+  }) : inputLimiter = InputRateLimiter(clock: inputClock) {
     // Some host-side sessions never have a waiter.
     ready.future.then<void>((_) {}, onError: (Object _, StackTrace _) {});
   }
@@ -79,6 +90,8 @@ class LanSyncEngine extends SyncEngine {
   final int preferredPort;
   final Future<Directory> Function()? receiveDirectory;
   final Future<bool> Function()? networkAvailable;
+  final InputSink? inputSink;
+  final Duration Function()? inputClock;
   final HostServer _server = HostServer();
   final PairingTokens tokens = PairingTokens();
   final StreamController<SyncEvent> _events = StreamController.broadcast();
@@ -102,6 +115,9 @@ class LanSyncEngine extends SyncEngine {
   bool _disposed = false;
   Timer? _reconnectTimer;
   Timer? _offerTimer;
+  Timer? _trustTimer;
+  bool _refreshingTrust = false;
+  final _remoteStatus = ValueNotifier(const RemoteInputStatus());
   int _backoff = 1;
   int _generation = 0;
 
@@ -120,6 +136,8 @@ class LanSyncEngine extends SyncEngine {
     this.preferredPort = 48620,
     this.receiveDirectory,
     this.networkAvailable,
+    this.inputSink,
+    this.inputClock,
   }) : discovery = discovery ?? BonjourDiscovery(),
        secrets = secrets ?? SecureSecretStore(supportDirectory) {
     _files = FileTransfer(
@@ -141,6 +159,8 @@ class LanSyncEngine extends SyncEngine {
     );
     repository.addListener(_repositoryChanged);
     settings.addListener(_settingsChanged);
+    if (isHost) inputSink?.trusted.addListener(_inputTrustChanged);
+    _updateHostInputStatus();
   }
 
   @override
@@ -157,6 +177,101 @@ class LanSyncEngine extends SyncEngine {
   ValueListenable<Map<String, double>> get transfers => _files.progress;
   @override
   Stream<SyncEvent> get events => _events.stream;
+  @override
+  ValueListenable<RemoteInputStatus> get remoteStatus => _remoteStatus;
+
+  @override
+  void sendInput(RemoteInput input) {
+    final session = _active;
+    if (isHost ||
+        !_running ||
+        session == null ||
+        session.closed ||
+        session.socket.readyState != WebSocket.open ||
+        !session.authenticated ||
+        !session.hello ||
+        devices.get(session.peer?.id ?? '') == null) {
+      return;
+    }
+    final state = _remoteStatus.value;
+    if (!state.available || !state.enabled || !state.trusted) return;
+    final wire = input.toWire();
+    if (RemoteInput.fromWire(wire) == null) return;
+    session.send('input', wire);
+  }
+
+  void _updateHostInputStatus() {
+    if (!isHost || _disposed) return;
+    final next = RemoteInputStatus(
+      enabled: settings.remoteControl,
+      trusted: inputSink?.trusted.value ?? false,
+      available: inputSink != null,
+    );
+    if (next == _remoteStatus.value) return;
+    _remoteStatus.value = next;
+    final session = _active;
+    if (session != null && session.authenticated && session.hello) {
+      _sendInputStatus(session);
+    }
+  }
+
+  void _sendInputStatus(_Session session) {
+    // Older hosts without an input sink must not advertise this capability.
+    if (isHost && inputSink != null && !session.closed) {
+      session.send('input_status', _remoteStatus.value.toWire());
+    }
+  }
+
+  void _inputTrustChanged() {
+    if (inputSink?.trusted.value == false) unawaited(_resetInput());
+    _updateHostInputStatus();
+  }
+
+  Future<void> _refreshInputTrust() async {
+    if (!isHost || inputSink == null || _refreshingTrust || _disposed) return;
+    _refreshingTrust = true;
+    try {
+      await inputSink!.refreshTrust();
+      _updateHostInputStatus();
+    } catch (_) {
+      // Native input availability must never fail the durable sync transport.
+    } finally {
+      _refreshingTrust = false;
+    }
+  }
+
+  Future<void> _resetInput() async {
+    if (!isHost || inputSink == null) return;
+    try {
+      await inputSink!.reset();
+    } catch (_) {}
+  }
+
+  Future<void> _receiveInput(
+    _Session session,
+    Map<String, dynamic> wire,
+  ) async {
+    if (!_running ||
+        !isHost ||
+        session.closed ||
+        session != _active ||
+        !session.authenticated ||
+        !session.hello ||
+        session.peer == null ||
+        devices.get(session.peer!.id) == null ||
+        !session.inputLimiter.allow() ||
+        !settings.remoteControl ||
+        inputSink?.trusted.value != true) {
+      return;
+    }
+    final input = RemoteInput.fromWire(wire);
+    if (input == null) return;
+    try {
+      if (!await inputSink!.dispatch(input)) await _refreshInputTrust();
+    } catch (_) {
+      // Never log input contents, even on execution failures.
+    }
+  }
 
   void _emit(SyncEvent event) {
     if (!_disposed) _events.add(event);
@@ -181,6 +296,10 @@ class LanSyncEngine extends SyncEngine {
   }
 
   void _settingsChanged() {
+    if (isHost && _remoteStatus.value.enabled && !settings.remoteControl) {
+      unawaited(_resetInput());
+    }
+    _updateHostInputStatus();
     if (!settings.autoReconnect) {
       _reconnectTimer?.cancel();
     } else if (_running && _active == null) {
@@ -228,6 +347,14 @@ class LanSyncEngine extends SyncEngine {
     _running = true;
     final generation = ++_generation;
     try {
+      await _refreshInputTrust();
+      if (!_running || _disposed || generation != _generation) return;
+      if (isHost && inputSink != null) {
+        _trustTimer?.cancel();
+        _trustTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+          unawaited(_refreshInputTrust());
+        });
+      }
       _identity ??= await DeviceIdentity.load(
         secrets,
         initialDeviceId: initialDeviceId,
@@ -294,6 +421,9 @@ class LanSyncEngine extends SyncEngine {
     ++_generation;
     _reconnectTimer?.cancel();
     _offerTimer?.cancel();
+    _trustTimer?.cancel();
+    if (!isHost) _remoteStatus.value = const RemoteInputStatus();
+    await _resetInput();
     tokens.cancel();
     _requests.clear();
     final sessions = _sessions.toList();
@@ -516,7 +646,7 @@ class LanSyncEngine extends SyncEngine {
       socket.close(WebSocketStatus.policyViolation, 'Niet beschikbaar.');
       return;
     }
-    final session = _Session(socket);
+    final session = _Session(socket, inputClock: inputClock);
     _attach(session);
     session.send('challenge', {'nonce': session.challenge});
   }
@@ -537,6 +667,7 @@ class LanSyncEngine extends SyncEngine {
       connection.socket,
       client: connection,
       preview: preview,
+      inputClock: inputClock,
     );
     _attach(session);
     return session;
@@ -552,12 +683,29 @@ class LanSyncEngine extends SyncEngine {
     });
     session.socket.listen(
       (frame) {
+        Map<String, dynamic>? message;
+        Object? decodeError;
+        if (frame is String) {
+          try {
+            message = decodeMessage(frame);
+          } catch (error) {
+            decodeError = error;
+          }
+        }
+        if (message?['t'] == 'input') {
+          // Process on arrival, outside the file/item queue: stale gestures
+          // must not accumulate while SQLite or file transfers are busy.
+          session.lastSeen = DateTime.now();
+          unawaited(_receiveInput(session, message!));
+          return;
+        }
         session.queue = session.queue
             .then((_) async {
               if (session.closed) return;
               session.lastSeen = DateTime.now();
+              if (decodeError != null) throw decodeError;
               if (frame is String) {
-                await _handle(session, decodeMessage(frame));
+                await _handle(session, message!);
               } else if (frame is List<int> &&
                   session == _active &&
                   session.authenticated &&
@@ -781,6 +929,7 @@ class LanSyncEngine extends SyncEngine {
         return;
       }
       session.hello = true;
+      _sendInputStatus(session);
       if (!session.ready.isCompleted) session.ready.complete(session.peer!);
       await syncNow();
       return;
@@ -804,6 +953,11 @@ class LanSyncEngine extends SyncEngine {
       throw const FormatException('Verbinding is nog niet gereed.');
     }
     switch (type) {
+      case 'input_status':
+        if (!isHost) {
+          final state = RemoteInputStatus.fromWire(message);
+          if (state != null) _remoteStatus.value = state;
+        }
       case 'item':
         final item = DotItem.fromWire(
           Map<String, Object?>.from(message['item'] as Map),
@@ -1104,6 +1258,10 @@ class LanSyncEngine extends SyncEngine {
     }
     if (_active == session) {
       _active = null;
+      if (!isHost && !_disposed) {
+        _remoteStatus.value = const RemoteInputStatus();
+      }
+      await _resetInput();
       _inFlight.clear();
       await _files.disconnected();
       await repository.setStateForDirty(SyncState.waiting);
@@ -1126,11 +1284,14 @@ class LanSyncEngine extends SyncEngine {
     if (_disposed) return;
     repository.removeListener(_repositoryChanged);
     settings.removeListener(_settingsChanged);
+    if (isHost) inputSink?.trusted.removeListener(_inputTrustChanged);
     _disposed = true;
     _running = false;
     ++_generation;
     _reconnectTimer?.cancel();
     _offerTimer?.cancel();
+    _trustTimer?.cancel();
+    unawaited(_resetInput());
     for (final session in _sessions) {
       session.closed = true;
       session.deadline?.cancel();
@@ -1146,6 +1307,7 @@ class LanSyncEngine extends SyncEngine {
     discovery.stop().catchError((Object _) {});
     _events.close();
     _files.dispose();
+    _remoteStatus.dispose();
     super.dispose();
   }
 }
