@@ -13,6 +13,7 @@ class DotDatabase {
       dbPath,
       options: OpenDatabaseOptions(
         version: _version,
+        singleInstance: dbPath != inMemoryDatabasePath,
         onCreate: (db, v) async {
           await db.execute('''
             CREATE TABLE items (

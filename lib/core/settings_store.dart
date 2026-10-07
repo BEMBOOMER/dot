@@ -5,8 +5,13 @@ class SettingsStore extends ChangeNotifier {
   final SharedPreferences prefs;
   SettingsStore(this.prefs);
 
-  ThemeMode get themeMode => ThemeMode.values.byName(prefs.getString('themeMode') ?? 'system');
-  set themeMode(ThemeMode v) => _set(() => prefs.setString('themeMode', v.name));
+  ThemeMode get themeMode =>
+      ThemeMode.values
+          .where((mode) => mode.name == prefs.getString('themeMode'))
+          .firstOrNull ??
+      ThemeMode.system;
+  set themeMode(ThemeMode v) =>
+      _set(() => prefs.setString('themeMode', v.name));
 
   bool get reducedMotion => prefs.getBool('reducedMotion') ?? false;
   set reducedMotion(bool v) => _set(() => prefs.setBool('reducedMotion', v));
@@ -25,12 +30,18 @@ class SettingsStore extends ChangeNotifier {
 
   /// macOS: where received files go. Null = ~/Downloads/DOT.
   String? get downloadDir => prefs.getString('downloadDir');
-  set downloadDir(String? v) =>
-      _set(() => v == null ? prefs.remove('downloadDir') : prefs.setString('downloadDir', v));
+  set downloadDir(String? v) => _set(
+    () => v == null
+        ? prefs.remove('downloadDir')
+        : prefs.setString('downloadDir', v),
+  );
 
   String? get deviceName => prefs.getString('deviceName');
-  set deviceName(String? v) =>
-      _set(() => v == null ? prefs.remove('deviceName') : prefs.setString('deviceName', v));
+  set deviceName(String? v) => _set(
+    () => v == null
+        ? prefs.remove('deviceName')
+        : prefs.setString('deviceName', v),
+  );
 
   bool get onboarded => prefs.getBool('onboarded') ?? false;
   set onboarded(bool v) => _set(() => prefs.setBool('onboarded', v));

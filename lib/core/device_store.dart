@@ -21,9 +21,17 @@ class DeviceStore extends ChangeNotifier {
   PairedDevice? get(String id) => _devices.where((d) => d.id == id).firstOrNull;
 
   Future<void> save(PairedDevice d) async {
-    await db.insert('devices', d.toDb(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'devices',
+      d.toDb(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
     await load();
   }
+
+  Future<void> add(PairedDevice device) => save(device);
+
+  Future<void> update(PairedDevice device) => save(device);
 
   Future<void> remove(String id) async {
     await db.delete('devices', where: 'id = ?', whereArgs: [id]);

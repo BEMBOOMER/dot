@@ -115,3 +115,11 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+  fonts:
+    - family: ArchivoBlack
+      fonts:
+        - asset: assets/fonts/ArchivoBlack-Regular.ttf
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk.ttf
