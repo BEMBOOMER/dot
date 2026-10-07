@@ -11,3 +11,5 @@ macos/Pods/
 .agents/*.log
 .harness/
 .agents/*.txt
+test/_review_shots_test.dart
+test/_shots/
