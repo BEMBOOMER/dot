@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +15,7 @@ class RemoteTrackpad extends StatefulWidget {
   final void Function(RemoteInput input) send;
   final double speed;
   final bool enabled;
+  final String disabledReason;
   final bool reducedMotion;
 
   const RemoteTrackpad({
@@ -21,6 +23,7 @@ class RemoteTrackpad extends StatefulWidget {
     required this.send,
     required this.speed,
     required this.enabled,
+    this.disabledReason = 'De trackpad is niet actief',
     required this.reducedMotion,
   });
 
@@ -226,59 +229,90 @@ class _RemoteTrackpadState extends State<RemoteTrackpad> {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'Trackpad. Tik om te klikken. Veeg met twee vingers om te scrollen.',
+    label: widget.enabled
+        ? 'Trackpad. Tik om te klikken. Veeg met twee vingers om te scrollen.'
+        : 'Trackpad. ${widget.disabledReason}',
+    enabled: widget.enabled,
     onTap: widget.enabled
         ? () {
             widget.send(const RemoteInput.click(RemoteButton.left));
             HapticFeedback.selectionClick();
           }
         : null,
-    child: Listener(
+    child: RawGestureDetector(
       key: const ValueKey('trackpad-surface'),
       behavior: HitTestBehavior.opaque,
-      onPointerDown: _down,
-      onPointerMove: _motion,
-      onPointerUp: _up,
-      onPointerCancel: (_) => _reset(),
-      child: GestureDetector(
-        // Claim the surface so the surrounding short-screen scroll view cannot
-        // scroll the UI while the user is moving the Mac pointer.
-        onScaleStart: widget.enabled ? (_) {} : null,
-        onScaleUpdate: widget.enabled ? (_) {} : null,
-        child: Container(
-          decoration: BoxDecoration(
-            color: DotColors.muted(context),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.all(24),
-          child: IgnorePointer(
-            child: AnimatedOpacity(
-              opacity: _touched ? 0 : 1,
-              duration: widget.reducedMotion
-                  ? Duration.zero
-                  : const Duration(milliseconds: 220),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.touch_app_outlined,
-                    size: 32,
-                    color: DotColors.secondary(context),
+      excludeFromSemantics: true,
+      // Claim contacts immediately, including while disabled. The absorber
+      // blocks input callbacks without yielding gestures to an ancestor.
+      gestures: {
+        EagerGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+              EagerGestureRecognizer.new,
+              (_) {},
+            ),
+      },
+      child: AbsorbPointer(
+        absorbing: !widget.enabled,
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: _down,
+          onPointerMove: _motion,
+          onPointerUp: _up,
+          onPointerCancel: (_) => _reset(),
+          child: Container(
+            decoration: BoxDecoration(
+              color: DotColors.muted(context)
+                  .withValues(alpha: widget.enabled ? 1 : .55),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.all(24),
+            child: LayoutBuilder(
+              builder: (context, constraints) => FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  child: AnimatedOpacity(
+                    opacity: widget.enabled && _touched ? 0 : 1,
+                    duration: widget.reducedMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 220),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          widget.enabled
+                              ? Icons.touch_app_outlined
+                              : Icons.lock_outline_rounded,
+                          size: 32,
+                          color: DotColors.secondary(context),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          widget.enabled
+                              ? 'Beweeg met één vinger'
+                              : widget.disabledReason,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: widget.enabled
+                                    ? null
+                                    : DotColors.secondary(context),
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                        if (widget.enabled) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tik om te klikken\nTwee vingers om te scrollen\nHoud vast om te slepen',
+                            style: Theme.of(context).textTheme.bodySmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Beweeg met één vinger',
-                    style: Theme.of(context).textTheme.titleMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tik om te klikken\nTwee vingers om te scrollen\nHoud vast om te slepen',
-                    style: Theme.of(context).textTheme.bodySmall,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                ),
               ),
             ),
           ),

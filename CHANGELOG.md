@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1]
+
+- Opgelost: vegen op het trackpad liet het hele scherm scrollen in plaats van de muis te bewegen.
+- Het trackpad laat nu duidelijk zien waarom het uit staat, bijvoorbeeld als DOT op je Mac nog geen toegang heeft.
+- Alleen de Android-app is veranderd; de Mac-app hoef je niet bij te werken.
+
 ## [0.2.0]
 
 - Nieuw: bedien je Mac vanaf Android als trackpad, presentatieklikker en media-afstandsbediening.

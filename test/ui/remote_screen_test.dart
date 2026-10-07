@@ -14,6 +14,7 @@ import 'package:dot/platform/android_remote.dart';
 import 'package:dot/ui/screens/remote_screen.dart';
 import 'package:dot/ui/screens/workspace_screen.dart';
 import 'package:dot/ui/theme/dot_theme.dart';
+import 'package:dot/ui/widgets/remote_trackpad.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -268,6 +269,217 @@ void main() {
     expect(engine.inputs.whereType<PointerClick>(), isEmpty);
   });
 
+  Future<void> verticalDrag(WidgetTester tester) async {
+    final gesture = await tester.startGesture(tester.getCenter(surface));
+    for (var i = 0; i < 4; i++) {
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump(const Duration(milliseconds: 17));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+  }
+
+  remoteTest('vertical trackpad drags move the pointer without screen scroll', (
+    tester,
+  ) async {
+    await show(tester, size: const Size(320, 640));
+    final positions = {
+      for (final state in tester.stateList<ScrollableState>(
+        find.byType(Scrollable),
+      ))
+        state.position: state.position.pixels,
+    };
+    final bounds = tester.getRect(surface);
+
+    await verticalDrag(tester);
+
+    expect(engine.inputs, isNotEmpty);
+    expect(engine.inputs.every((input) => input is PointerMove), isTrue);
+    for (final move in engine.inputs.cast<PointerMove>()) {
+      expect(move.dx, 0);
+      expect(move.dy, lessThan(0));
+    }
+    for (final entry in positions.entries) {
+      expect(entry.key.pixels, entry.value);
+    }
+    expect(tester.getRect(surface), bounds);
+    expect(
+      find.ancestor(of: surface, matching: find.byType(Scrollable)),
+      findsNothing,
+    );
+  });
+
+  for (final (name, status, reason) in [
+    (
+      'untrusted',
+      const RemoteInputStatus(available: true, enabled: true),
+      'Geef DOT op je Mac toegang via Toegankelijkheid',
+    ),
+    (
+      'disabled',
+      const RemoteInputStatus(available: true, trusted: true),
+      'Bediening op afstand staat uit op je Mac',
+    ),
+  ]) {
+    remoteTest('$name trackpad absorbs drags without input or screen scroll', (
+      tester,
+    ) async {
+      engine.inputStatus.value = status;
+      await show(tester, size: const Size(320, 640));
+      final positions = {
+        for (final state in tester.stateList<ScrollableState>(
+          find.byType(Scrollable),
+        ))
+          state.position: state.position.pixels,
+      };
+      final bounds = tester.getRect(surface);
+
+      await verticalDrag(tester);
+
+      expect(engine.inputs, isEmpty);
+      for (final entry in positions.entries) {
+        expect(entry.key.pixels, entry.value);
+      }
+      expect(tester.getRect(surface), bounds);
+      expect(
+        find.ancestor(of: surface, matching: find.byType(Scrollable)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: surface, matching: find.text(reason)),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final enabled in [true, false]) {
+    remoteTest(
+      'trackpad claims ancestor scroll gestures when enabled=$enabled',
+      (tester) async {
+        await show(tester, size: const Size(320, 640));
+        final controller = ScrollController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          harness(
+            screen: Scaffold(
+              body: SingleChildScrollView(
+                controller: controller,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 300,
+                      child: RemoteTrackpad(
+                        send: engine.sendInput,
+                        speed: 1,
+                        enabled: enabled,
+                        reducedMotion: true,
+                      ),
+                    ),
+                    const SizedBox(height: 900),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.position.maxScrollExtent, greaterThan(0));
+        final offset = controller.offset;
+
+        await verticalDrag(tester);
+
+        expect(controller.offset, offset);
+        if (enabled) {
+          expect(engine.inputs, isNotEmpty);
+          expect(engine.inputs.every((input) => input is PointerMove), isTrue);
+        } else {
+          expect(engine.inputs, isEmpty);
+          expect(haptics, isEmpty);
+        }
+      },
+    );
+  }
+
+  remoteTest(
+    'short phones scroll only inside the presentation and media tabs',
+    (tester) async {
+      await show(tester, size: const Size(320, 480));
+      final header = tester.getRect(find.text('Trackpad'));
+      for (final (name, control) in [
+        ('Presentatie', find.widgetWithText(FilledButton, 'Stop')),
+        ('Media', find.byTooltip('Harder')),
+      ]) {
+        await tab(tester, name);
+        final scrollable = tester.state<ScrollableState>(
+          find.ancestor(of: control, matching: find.byType(Scrollable)),
+        );
+        expect(scrollable.position.maxScrollExtent, greaterThan(0));
+        await tester.ensureVisible(control);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(find.text('Trackpad')), header);
+        await tester.tap(control);
+        expect(tester.takeException(), isNull);
+      }
+      expect(engine.inputs.map((input) => input.runtimeType), [
+        PresentationKey,
+        MediaKey,
+      ]);
+      await tab(tester, 'Trackpad');
+      await verticalDrag(tester);
+      expect(engine.inputs.last, isA<PointerMove>());
+      expect(tester.getRect(find.text('Trackpad')), header);
+      expect(tester.takeException(), isNull);
+
+      engine.inputStatus.value = const RemoteInputStatus(
+        available: true,
+        enabled: true,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: surface,
+          matching: find.text(
+            'Geef DOT op je Mac toegang via Toegankelijkheid',
+          ),
+        ),
+        findsOneWidget,
+      );
+      engine.inputs.clear();
+      await verticalDrag(tester);
+      expect(engine.inputs, isEmpty);
+      expect(
+        tester
+            .widget<AnimatedOpacity>(
+              find.descendant(
+                of: surface,
+                matching: find.byType(AnimatedOpacity),
+              ),
+            )
+            .opacity,
+        1,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  remoteTest('presentation and media tabs do not scroll when content fits', (
+    tester,
+  ) async {
+    await show(tester);
+    for (final (name, control) in [
+      ('Presentatie', find.widgetWithText(FilledButton, 'Stop')),
+      ('Media', find.byTooltip('Harder')),
+    ]) {
+      await tab(tester, name);
+      final scrollable = tester.state<ScrollableState>(
+        find.ancestor(of: control, matching: find.byType(Scrollable)),
+      );
+      expect(scrollable.position.maxScrollExtent, 0);
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   remoteTest(
     'two fingers scroll smoothly without moving or clicking, including staggered lift',
     (tester) async {
@@ -442,7 +654,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  remoteTest('live trust and disabled banners gate every kind of input', (
+  remoteTest('live trust and disabled reasons gate every kind of input', (
     tester,
   ) async {
     engine.inputStatus.value = const RemoteInputStatus(
@@ -451,21 +663,31 @@ void main() {
     );
     await show(tester);
     expect(
-      find.text(
-        'Geef DOT op je Mac toegang: Systeeminstellingen > Privacy en beveiliging > Toegankelijkheid.',
-      ),
+      find.text('Geef DOT op je Mac toegang via Toegankelijkheid'),
       findsOneWidget,
     );
     await tester.tap(surface);
     await tester.pump(const Duration(milliseconds: 400));
+    expect(engine.inputs, isEmpty);
+    await tab(tester, 'Presentatie');
+    expect(
+      find
+          .text(
+            'Geef DOT op je Mac toegang: Systeeminstellingen > Privacy en beveiliging > Toegankelijkheid.',
+          )
+          .hitTestable(),
+      findsOneWidget,
+    );
+    await volume('next');
     expect(engine.inputs, isEmpty);
     engine.inputStatus.value = const RemoteInputStatus(
       available: true,
       trusted: true,
     );
     await tester.pumpAndSettle();
+    await tab(tester, 'Trackpad');
     expect(
-      find.text('Bediening op afstand staat uit op je Mac.'),
+      find.text('Bediening op afstand staat uit op je Mac'),
       findsOneWidget,
     );
     expect(find.textContaining('Geef DOT'), findsNothing);
@@ -581,6 +803,8 @@ void main() {
           return !state.isDemoMode ||
               state.engine.status != ConnectionStatus.connected;
         }).timeout(const Duration(seconds: 5));
+        // Connected is published before startup finishes its SQLite flush.
+        await state.engine.syncNow();
       });
       await tester.pumpAndSettle();
       await tester.tap(find.text('Bediening'));

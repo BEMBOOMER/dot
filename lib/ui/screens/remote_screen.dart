@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -160,6 +159,17 @@ class _RemoteScreenState extends State<RemoteScreen>
       valueListenable: _engine.remoteStatus,
       builder: (context, status, _) {
         final enabled = _canSend;
+        var disabledReason = 'De trackpad is niet actief';
+        if (!_connected) {
+          disabledReason = 'Verbind met je Mac om de trackpad te gebruiken';
+        } else if (!demo && !status.available) {
+          disabledReason =
+              'Werk DOT op je Mac bij om de bediening te gebruiken';
+        } else if (!demo && !status.enabled) {
+          disabledReason = 'Bediening op afstand staat uit op je Mac';
+        } else if (!demo && !status.trusted) {
+          disabledReason = 'Geef DOT op je Mac toegang via Toegankelijkheid';
+        }
         final messages = <String>[
           if (!demo && _connected) ...[
             if (!status.available)
@@ -191,165 +201,135 @@ class _RemoteScreenState extends State<RemoteScreen>
             ],
           ),
           body: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                child: SizedBox(
-                  height: math.max(
-                    constraints.maxHeight,
-                    messages.isEmpty ? 640 : 780,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: StatusPill(
+                      label: demo
+                          ? 'Voorbeeldbediening'
+                          : _connected
+                          ? 'Verbonden met ${_engine.peerName ?? 'je Mac'}'
+                          : statusLabel(
+                              _engine.status,
+                              peerName: _engine.peerName,
+                            ),
+                      color: _connected
+                          ? DotColors.success(context)
+                          : DotColors.secondary(context),
+                    ),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: DotColors.muted(context),
+                      borderRadius: BorderRadius.circular(36),
+                    ),
+                    child: Row(
                       children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: StatusPill(
-                            label: demo
-                                ? 'Voorbeeldbediening'
-                                : _connected
-                                ? 'Verbonden met ${_engine.peerName ?? 'je Mac'}'
-                                : statusLabel(
-                                    _engine.status,
-                                    peerName: _engine.peerName,
-                                  ),
-                            color: _connected
-                                ? DotColors.success(context)
-                                : DotColors.secondary(context),
-                          ),
-                        ),
-                        if (messages.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          DotCard(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  for (final (index, message)
-                                      in messages.indexed) ...[
-                                    if (index != 0) const SizedBox(height: 12),
-                                    Text(
-                                      message,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall,
+                        for (final (index, label) in [
+                          'Trackpad',
+                          'Presentatie',
+                          'Media',
+                        ].indexed)
+                          Expanded(
+                            child: Semantics(
+                              selected: _tab == index,
+                              child: AnimatedContainer(
+                                duration: settings.reducedMotion
+                                    ? Duration.zero
+                                    : const Duration(milliseconds: 220),
+                                decoration: BoxDecoration(
+                                  color: _tab == index
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(32),
+                                ),
+                                child: TextButton(
+                                  onPressed: () => _select(index),
+                                  style: TextButton.styleFrom(
+                                    minimumSize: const Size(56, 56),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
                                     ),
-                                  ],
-                                ],
+                                    foregroundColor: _tab == index
+                                        ? Colors.white
+                                        : DotColors.secondary(context),
+                                  ),
+                                  child: Text(
+                                    label,
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ],
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: DotColors.muted(context),
-                            borderRadius: BorderRadius.circular(36),
-                          ),
-                          child: Row(
-                            children: [
-                              for (final (index, label) in [
-                                'Trackpad',
-                                'Presentatie',
-                                'Media',
-                              ].indexed)
-                                Expanded(
-                                  child: Semantics(
-                                    selected: _tab == index,
-                                    child: AnimatedContainer(
-                                      duration: settings.reducedMotion
-                                          ? Duration.zero
-                                          : const Duration(milliseconds: 220),
-                                      decoration: BoxDecoration(
-                                        color: _tab == index
-                                            ? Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(32),
-                                      ),
-                                      child: TextButton(
-                                        onPressed: () => _select(index),
-                                        style: TextButton.styleFrom(
-                                          minimumSize: const Size(56, 56),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                          ),
-                                          foregroundColor: _tab == index
-                                              ? Colors.white
-                                              : DotColors.secondary(context),
-                                        ),
-                                        child: Text(
-                                          label,
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Expanded(
-                          child: IndexedStack(
-                            index: _tab,
-                            sizing: StackFit.expand,
-                            children: [
-                              Column(
-                                children: [
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: IndexedStack(
+                      index: _tab,
+                      sizing: StackFit.expand,
+                      children: [
+                        Column(
+                          children: [
+                            Expanded(
+                              child: RemoteTrackpad(
+                                send: _send,
+                                speed: settings.trackpadSpeed,
+                                enabled: enabled && _tab == 0,
+                                disabledReason: disabledReason,
+                                reducedMotion: settings.reducedMotion,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                for (final (label, button) in [
+                                  ('Links', RemoteButton.left),
+                                  ('Rechts', RemoteButton.right),
+                                ]) ...[
+                                  if (button == RemoteButton.right)
+                                    const SizedBox(width: 12),
                                   Expanded(
-                                    child: RemoteTrackpad(
-                                      send: _send,
-                                      speed: settings.trackpadSpeed,
-                                      enabled: enabled && _tab == 0,
-                                      reducedMotion: settings.reducedMotion,
+                                    child: _ControlButton(
+                                      label: label,
+                                      enabled: enabled,
+                                      onPressed: () =>
+                                          _press(RemoteInput.click(button)),
                                     ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      for (final (label, button) in [
-                                        ('Links', RemoteButton.left),
-                                        ('Rechts', RemoteButton.right),
-                                      ]) ...[
-                                        if (button == RemoteButton.right)
-                                          const SizedBox(width: 12),
-                                        Expanded(
-                                          child: _ControlButton(
-                                            label: label,
-                                            enabled: enabled,
-                                            onPressed: () => _press(
-                                              RemoteInput.click(button),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
                                   ),
                                 ],
-                              ),
-                              _Presentation(
-                                enabled: enabled,
-                                active:
-                                    _tab == 1 && _foreground && _routeCurrent,
-                                onKey: (key) => _press(RemoteInput.key(key)),
-                              ),
-                              _Media(
-                                enabled: enabled,
-                                onMedia: (media) =>
-                                    _press(RemoteInput.media(media)),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ],
+                        ),
+                        _ScrollableTab(
+                          messages: messages,
+                          child: _Presentation(
+                            enabled: enabled,
+                            active: _tab == 1 && _foreground && _routeCurrent,
+                            onKey: (key) => _press(RemoteInput.key(key)),
+                          ),
+                        ),
+                        _ScrollableTab(
+                          messages: messages,
+                          child: _Media(
+                            enabled: enabled,
+                            onMedia: (media) =>
+                                _press(RemoteInput.media(media)),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -357,6 +337,52 @@ class _RemoteScreenState extends State<RemoteScreen>
       },
     );
   }
+}
+
+/// Keeps scrolling within the selected controls tab, with no excess extent
+/// when its content fits the available height.
+class _ScrollableTab extends StatelessWidget {
+  final List<String> messages;
+  final Widget child;
+
+  const _ScrollableTab({required this.messages, required this.child});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: IntrinsicHeight(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (messages.isNotEmpty) ...[
+                DotCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final (index, message) in messages.indexed) ...[
+                          if (index != 0) const SizedBox(height: 12),
+                          Text(
+                            message,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              Expanded(child: child),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _ControlButton extends StatelessWidget {
