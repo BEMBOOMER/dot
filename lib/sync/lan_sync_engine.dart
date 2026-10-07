@@ -265,7 +265,8 @@ class LanSyncEngine extends SyncEngine {
             : ConnectionStatus.unpaired,
       );
       if (devices.hasPeer && settings.autoReconnect) await reconnect();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('DOT sync start failed: ${e.runtimeType}: $e');
       _setStatus(
         ConnectionStatus.failed,
         'DOT kan de beveiligde verbinding niet starten. Probeer opnieuw.',

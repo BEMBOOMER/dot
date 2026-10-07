@@ -30,7 +30,9 @@ class SecureSecretStore implements SecretStore {
     if (await file.exists()) return file.readAsString();
     if (!_fallback) {
       try {
-        return await storage.read(key: 'dot.$key');
+        return await storage
+            .read(key: 'dot.$key')
+            .timeout(const Duration(seconds: 3));
       } catch (_) {
         _fallback = true;
       }
@@ -42,7 +44,9 @@ class SecureSecretStore implements SecretStore {
   Future<void> write(String key, String value) async {
     if (!_fallback && !await _file(key).exists()) {
       try {
-        await storage.write(key: 'dot.$key', value: value);
+        await storage
+            .write(key: 'dot.$key', value: value)
+            .timeout(const Duration(seconds: 3));
         return;
       } catch (_) {
         _fallback = true;
