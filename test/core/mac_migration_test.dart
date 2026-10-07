@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dot/core/database.dart';
 import 'package:dot/platform/mac_migration.dart';
 import 'package:dot/sync/identity.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -20,6 +21,9 @@ void main() {
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('dot-migration-');
+    final support = Directory(
+      p.join(root.path, 'Library', 'Application Support', 'com.bemooks.dot'),
+    );
     migration = MacDataMigration(
       oldSupport: Directory(
         p.join(
@@ -30,11 +34,10 @@ void main() {
           'com.bemooks.dot',
         ),
       ),
-      newSupport: Directory(
-        p.join(root.path, 'Library', 'Application Support', 'com.bemooks.dot'),
-      ),
+      newSupport: support,
       oldDatabases: Directory(p.join(root.path, 'container', 'Documents')),
-      newDatabases: Directory(p.join(root.path, 'Documents')),
+      newDatabases: support,
+      documentsDirectory: Directory(p.join(root.path, 'Documents')),
       oldPreferences: File(
         p.join(
           root.path,
@@ -51,7 +54,26 @@ void main() {
   });
   tearDown(() async => root.delete(recursive: true));
 
-  test('copies database family, private secrets, nested files and preferences without moving', () async {
+  test('macOS opens the default database in Application Support', () async {
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'getApplicationSupportDirectory');
+      return migration.newSupport.path;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    final db = await DotDatabase.open(factory: databaseFactoryFfi);
+    try {
+      expect(db.path, p.join(migration.newSupport.path, 'dot.db'));
+      expect(await File(db.path).exists(), isTrue);
+      expect(await migration.documentsDirectory!.exists(), isFalse);
+    } finally {
+      await db.close();
+    }
+  }, skip: !Platform.isMacOS);
+
+  test('copies container data to Application Support without moving', () async {
     final oldStore = SecureSecretStore(migration.oldSupport);
     final identity = await DeviceIdentity.load(oldStore);
     for (final suffix in ['', '-wal', '-shm', '-journal']) {
@@ -114,48 +136,186 @@ void main() {
     expect(await migration.newPreferences.readAsString(), 'new preferences');
   }, skip: !Platform.isMacOS);
 
-  test('copies a real SQLite database including uncheckpointed WAL and pairing rows', () async {
-    await migration.oldDatabases.create(recursive: true);
-    final old = await DotDatabase.open(
-      factory: databaseFactoryFfi,
-      path: p.join(migration.oldDatabases.path, 'dot.db'),
-    );
-    Database? restored;
-    try {
-      await old.rawQuery('PRAGMA journal_mode=WAL');
-      await old.rawQuery('PRAGMA wal_autocheckpoint=0');
-      await old.insert('devices', {
-        'id': 'paired-phone',
-        'name': 'Android',
-        'platform': 'android',
-        'public_key': 'saved-public-key',
-        'paired_at': 123,
-      });
-      expect(
-        await File(p.join(migration.oldDatabases.path, 'dot.db-wal')).length(),
-        greaterThan(0),
+  test('moves the Documents database family to Application Support without a container', () async {
+    for (final suffix in ['', '-wal', '-shm', '-journal']) {
+      await write(
+        p.join(migration.documentsDirectory!.path, 'dot.db$suffix'),
+        'documents$suffix',
       );
-      await migration.copy();
-      restored = await DotDatabase.open(
-        factory: databaseFactoryFfi,
-        path: p.join(migration.newDatabases.path, 'dot.db'),
-      );
-      expect((await restored.query('devices')).single['id'], 'paired-phone');
-      expect(
-        (await restored.rawQuery('PRAGMA integrity_check'))
-            .single
-            .values
-            .single,
-        'ok',
-      );
-      expect(
-        await File(p.join(migration.oldDatabases.path, 'dot.db')).exists(),
-        isTrue,
-      );
-    } finally {
-      await restored?.close();
-      await old.close();
     }
+    await migration.copy();
+    expect(await Directory(p.join(root.path, 'container')).exists(), isFalse);
+    for (final suffix in ['', '-wal', '-shm', '-journal']) {
+      expect(
+        await File(p.join(migration.newSupport.path, 'dot.db$suffix'))
+            .readAsString(),
+        'documents$suffix',
+      );
+      expect(
+        await File(p.join(migration.documentsDirectory!.path, 'dot.db$suffix'))
+            .exists(),
+        isFalse,
+      );
+    }
+    expect(
+      await File(p.join(migration.newSupport.path, '.documents-migration'))
+          .exists(),
+      isFalse,
+    );
+    await migration.copy();
+    expect(
+      await File(p.join(migration.newSupport.path, 'dot.db')).readAsString(),
+      'documents',
+    );
+  });
+
+  test('Documents takes precedence over the container and keeps the current identity', () async {
+    await write(
+      p.join(migration.oldDatabases.path, 'dot.db'),
+      'stale database',
+    );
+    await write(
+      p.join(migration.oldSupport.path, 'secrets', 'identity.json'),
+      'stale identity',
+    );
+    await write(
+      p.join(migration.documentsDirectory!.path, 'dot.db'),
+      'current database',
+    );
+    final identity = File(
+      p.join(migration.newSupport.path, 'secrets', 'identity.json'),
+    );
+    await write(identity.path, 'current identity');
+    await migration.copy();
+    expect(
+      await File(p.join(migration.newSupport.path, 'dot.db')).readAsString(),
+      'current database',
+    );
+    expect(await identity.readAsString(), 'current identity');
+    expect(
+      await File(p.join(migration.documentsDirectory!.path, 'dot.db')).exists(),
+      isFalse,
+    );
+    expect(
+      await File(p.join(migration.oldDatabases.path, 'dot.db')).readAsString(),
+      'stale database',
+    );
+  });
+
+  for (final fromDocuments in [false, true]) {
+    test(
+      '${fromDocuments ? 'moves Documents' : 'copies container'} SQLite data including uncheckpointed WAL and pairing rows',
+      () async {
+        final sourceDatabases = fromDocuments
+            ? migration.documentsDirectory!
+            : migration.oldDatabases;
+        await sourceDatabases.create(recursive: true);
+        final old = await DotDatabase.open(
+          factory: databaseFactoryFfi,
+          path: p.join(sourceDatabases.path, 'dot.db'),
+        );
+        Database? restored;
+        try {
+          await old.rawQuery('PRAGMA journal_mode=WAL');
+          await old.rawQuery('PRAGMA wal_autocheckpoint=0');
+          await old.insert('devices', {
+            'id': 'paired-phone',
+            'name': 'Android',
+            'platform': 'android',
+            'public_key': 'saved-public-key',
+            'paired_at': 123,
+          });
+          expect(
+            await File(p.join(sourceDatabases.path, 'dot.db-wal')).length(),
+            greaterThan(0),
+          );
+          await migration.copy();
+          restored = await DotDatabase.open(
+            factory: databaseFactoryFfi,
+            path: p.join(migration.newDatabases.path, 'dot.db'),
+          );
+          expect(
+            (await restored.query('devices')).single['id'],
+            'paired-phone',
+          );
+          expect(
+            (await restored.rawQuery('PRAGMA integrity_check'))
+                .single
+                .values
+                .single,
+            'ok',
+          );
+          expect(
+            await File(p.join(sourceDatabases.path, 'dot.db')).exists(),
+            !fromDocuments,
+          );
+        } finally {
+          await restored?.close();
+          await old.close();
+        }
+      },
+    );
+  }
+
+  for (final cleaningUp in [false, true]) {
+    test(
+      'resumes an interrupted Documents ${cleaningUp ? 'cleanup' : 'copy'}',
+      () async {
+        for (final suffix in ['', '-wal', '-shm']) {
+          await write(
+            p.join(migration.documentsDirectory!.path, 'dot.db$suffix'),
+            'documents$suffix',
+          );
+          if (cleaningUp || suffix == '-wal') {
+            await write(
+              p.join(migration.newSupport.path, 'dot.db$suffix'),
+              'documents$suffix',
+            );
+          }
+        }
+        if (cleaningUp) {
+          await File(p.join(migration.documentsDirectory!.path, 'dot.db-wal'))
+              .delete();
+        }
+        final marker = await write(
+          p.join(migration.newSupport.path, '.documents-migration'),
+          'moving',
+        );
+        await migration.copy();
+        for (final suffix in ['', '-wal', '-shm']) {
+          expect(
+            await File(p.join(migration.newSupport.path, 'dot.db$suffix'))
+                .readAsString(),
+            'documents$suffix',
+          );
+          expect(
+            await File(
+              p.join(migration.documentsDirectory!.path, 'dot.db$suffix'),
+            ).exists(),
+            isFalse,
+          );
+        }
+        expect(await marker.exists(), isFalse);
+      },
+    );
+  }
+
+  test('does not merge Documents with existing destination sidecars', () async {
+    final source = await write(
+      p.join(migration.documentsDirectory!.path, 'dot.db'),
+      'documents',
+    );
+    final sidecar = await write(
+      p.join(migration.newSupport.path, 'dot.db-wal'),
+      'existing WAL',
+    );
+    await expectLater(migration.copy(), throwsA(isA<FileSystemException>()));
+    expect(await source.readAsString(), 'documents');
+    expect(await sidecar.readAsString(), 'existing WAL');
+    expect(
+      await File(p.join(migration.newSupport.path, 'dot.db')).exists(),
+      isFalse,
+    );
   });
 
   test(
@@ -194,7 +354,16 @@ void main() {
         'stale identity',
       );
       await write(p.join(migration.oldDatabases.path, 'dot.db'), 'old db');
-      await write(p.join(migration.newDatabases.path, 'dot.db'), 'new db');
+      for (final suffix in ['', '-wal', '-shm', '-journal']) {
+        await write(
+          p.join(migration.newSupport.path, 'dot.db$suffix'),
+          'new db$suffix',
+        );
+        await write(
+          p.join(migration.documentsDirectory!.path, 'dot.db$suffix'),
+          'documents$suffix',
+        );
+      }
       await migration.copy();
       expect(
         await File(
@@ -202,11 +371,19 @@ void main() {
         ).exists(),
         isFalse,
       );
-      expect(
-        await File(p.join(migration.newDatabases.path, 'dot.db'))
-            .readAsString(),
-        'new db',
-      );
+      for (final suffix in ['', '-wal', '-shm', '-journal']) {
+        expect(
+          await File(p.join(migration.newSupport.path, 'dot.db$suffix'))
+              .readAsString(),
+          'new db$suffix',
+        );
+        expect(
+          await File(
+            p.join(migration.documentsDirectory!.path, 'dot.db$suffix'),
+          ).readAsString(),
+          'documents$suffix',
+        );
+      }
     },
   );
 
@@ -290,31 +467,61 @@ void main() {
     },
   );
 
-  test('preferences are activated before startup; activation failure rolls back copies', () async {
-    await write(p.join(migration.oldDatabases.path, 'dot.db'), 'database');
-    await write(migration.oldPreferences.path, 'preferences');
-    var failActivation = true;
-    final withActivation = MacDataMigration(
-      oldSupport: migration.oldSupport,
-      newSupport: migration.newSupport,
-      oldDatabases: migration.oldDatabases,
-      newDatabases: migration.newDatabases,
-      oldPreferences: migration.oldPreferences,
-      newPreferences: migration.newPreferences,
-      activatePreferences: () async {
+  for (final fromDocuments in [false, true]) {
+    test(
+      '${fromDocuments ? 'Documents' : 'container'} preference activation failure retains sources for retry',
+      () async {
+        final sourceDatabases = fromDocuments
+            ? migration.documentsDirectory!
+            : migration.oldDatabases;
+        await write(p.join(sourceDatabases.path, 'dot.db'), 'database');
+        if (fromDocuments) {
+          await write(p.join(sourceDatabases.path, 'dot.db-wal'), 'WAL');
+        }
+        await write(migration.oldPreferences.path, 'preferences');
+        var failActivation = true;
+        final withActivation = MacDataMigration(
+          oldSupport: migration.oldSupport,
+          newSupport: migration.newSupport,
+          oldDatabases: migration.oldDatabases,
+          newDatabases: migration.newDatabases,
+          documentsDirectory: migration.documentsDirectory,
+          oldPreferences: migration.oldPreferences,
+          newPreferences: migration.newPreferences,
+          activatePreferences: () async {
+            expect(
+              await migration.newPreferences.readAsString(),
+              'preferences',
+            );
+            if (failActivation) throw StateError('Preferences reload failed');
+          },
+        );
+        await expectLater(withActivation.copy(), throwsStateError);
+        expect(await migration.newPreferences.exists(), isFalse);
+        expect(
+          await File(p.join(migration.newDatabases.path, 'dot.db')).exists(),
+          isFalse,
+        );
+        expect(await migration.oldPreferences.readAsString(), 'preferences');
+        expect(
+          await File(p.join(sourceDatabases.path, 'dot.db')).readAsString(),
+          'database',
+        );
+        if (fromDocuments) {
+          expect(
+            await File(p.join(sourceDatabases.path, 'dot.db-wal'))
+                .readAsString(),
+            'WAL',
+          );
+        }
+        failActivation = false;
+        await withActivation.copy();
         expect(await migration.newPreferences.readAsString(), 'preferences');
-        if (failActivation) throw StateError('Preferences reload failed');
+        expect(
+          await File(p.join(sourceDatabases.path, 'dot.db')).exists(),
+          !fromDocuments,
+        );
       },
     );
-    await expectLater(withActivation.copy(), throwsStateError);
-    expect(await migration.newPreferences.exists(), isFalse);
-    expect(
-      await File(p.join(migration.newDatabases.path, 'dot.db')).exists(),
-      isFalse,
-    );
-    expect(await migration.oldPreferences.readAsString(), 'preferences');
-    failActivation = false;
-    await withActivation.copy();
-    expect(await migration.newPreferences.readAsString(), 'preferences');
-  });
+  }
 }

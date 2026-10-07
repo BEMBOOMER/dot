@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqflite/sqflite.dart';
 
 /// Run before SharedPreferences, identity loading and opening any database.
 Future<void> migrateMacData(Directory supportDirectory) async {
@@ -15,23 +14,18 @@ Future<void> migrateMacData(Directory supportDirectory) async {
   final container = Directory(
     p.join(home, 'Library', 'Containers', 'com.bemooks.dot', 'Data'),
   );
-  if (!await container.exists()) return;
   final legacySupport = Directory(
     p.join(container.path, 'Library', 'Application Support', 'com.bemooks.dot'),
   );
-  // sqflite_darwin's handleGetDatabasesPath uses NSDocumentDirectory, not
-  // Application Support: sandboxed = container/Data/Documents, otherwise
-  // the user's Documents directory. Query the installed plugin for the target.
-  final databases = Directory(await getDatabasesPath());
-  if (p.isWithin(container.path, supportDirectory.path) ||
-      p.isWithin(container.path, databases.path)) {
+  if (p.isWithin(container.path, supportDirectory.path)) {
     return;
   }
   await MacDataMigration(
     oldSupport: legacySupport,
     newSupport: supportDirectory,
     oldDatabases: Directory(p.join(container.path, 'Documents')),
-    newDatabases: databases,
+    newDatabases: supportDirectory,
+    documentsDirectory: Directory(p.join(home, 'Documents')),
     oldPreferences: File(
       p.join(container.path, 'Library', 'Preferences', 'com.bemooks.dot.plist'),
     ),
@@ -49,7 +43,8 @@ Future<void> migrateMacData(Directory supportDirectory) async {
   ).copy();
 }
 
-/// Copies only into missing destinations. Original container data stays intact.
+/// Copies container data and moves the unsandboxed Documents database only into
+/// missing destinations. Original container data stays intact.
 /// On failure roll back this attempt and abort startup, rather than minting a
 /// new identity over a partial migration and losing existing pairing trust.
 class MacDataMigration {
@@ -57,6 +52,7 @@ class MacDataMigration {
   final Directory newSupport;
   final Directory oldDatabases;
   final Directory newDatabases;
+  final Directory? documentsDirectory;
   final File oldPreferences;
   final File newPreferences;
   final Future<void> Function()? activatePreferences;
@@ -66,6 +62,7 @@ class MacDataMigration {
     required this.newSupport,
     required this.oldDatabases,
     required this.newDatabases,
+    this.documentsDirectory,
     required this.oldPreferences,
     required this.newPreferences,
     this.activatePreferences,
@@ -74,13 +71,57 @@ class MacDataMigration {
   Future<void> copy() async {
     final created = <FileSystemEntity>[];
     final marker = File(p.join(newSupport.path, '.sandbox-migration'));
+    final documentsMarker = File(
+      p.join(newSupport.path, '.documents-migration'),
+    );
+    final documentsToRemove = <File>[];
+    var movingDocuments = false;
     try {
       final targetDb = File(p.join(newDatabases.path, 'dot.db'));
+      final documents = documentsDirectory;
+      if (documents != null) {
+        final sourceDb = File(p.join(documents.path, 'dot.db'));
+        final resumingMove = await documentsMarker.exists();
+        movingDocuments =
+            resumingMove ||
+            (!await _exists(targetDb.path) && await sourceDb.exists());
+        if (movingDocuments) {
+          if (!resumingMove) {
+            for (final suffix in ['-wal', '-shm', '-journal']) {
+              if (await _exists('${targetDb.path}$suffix')) {
+                throw const FileSystemException(
+                  'Migration destination contains database sidecars',
+                );
+              }
+            }
+            await _directory(newSupport, created);
+            await documentsMarker.writeAsString('moving', flush: true);
+            created.add(documentsMarker);
+          }
+          // Prefer the current unsandboxed database over the older container.
+          // Copy the complete family before deleting anything from Documents.
+          // The marker lets startup finish a move interrupted between files.
+          for (final suffix in ['-wal', '-shm', '-journal', '']) {
+            final source = File('${sourceDb.path}$suffix');
+            if (await source.exists()) {
+              await _copyFile(source, File('${targetDb.path}$suffix'), created);
+              documentsToRemove.add(source);
+            }
+          }
+          if (!await targetDb.exists()) {
+            throw const FileSystemException(
+              'Documents database unavailable for retry',
+            );
+          }
+        }
+      }
       final targetSecrets = Directory(p.join(newSupport.path, 'secrets'));
       final resuming = await marker.exists();
       final hasNewData =
-          !resuming &&
-          (await _exists(targetDb.path) || await _exists(targetSecrets.path));
+          movingDocuments ||
+          (!resuming &&
+              (await _exists(targetDb.path) ||
+                  await _exists(targetSecrets.path)));
       if (!hasNewData) {
         var sourceDb = File(p.join(oldDatabases.path, 'dot.db'));
         // Also accept the Application Support layout of older/manual builds.
@@ -136,14 +177,24 @@ class MacDataMigration {
         await activatePreferences?.call();
       }
       if (await marker.exists()) await marker.delete();
-      if (created.isNotEmpty) debugPrint('DOT macOS data migration succeeded.');
+      final migrated = created.isNotEmpty || movingDocuments;
+      if (movingDocuments) {
+        // The destination is complete. Keep it if source cleanup fails, so a
+        // retry cannot lose data already removed from Documents.
+        created.clear();
+        for (final source in documentsToRemove) {
+          await source.delete();
+        }
+        await documentsMarker.delete();
+      }
+      if (migrated) debugPrint('DOT macOS data migration succeeded.');
     } catch (_) {
       for (final entity in created.reversed) {
         try {
           await entity.delete();
         } catch (_) {}
       }
-      debugPrint('DOT macOS data migration failed. Original data retained.');
+      debugPrint('DOT macOS data migration failed.');
       rethrow;
     }
   }

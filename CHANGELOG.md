@@ -6,6 +6,7 @@
 - Nieuw: bediening op afstand is alleen beschikbaar voor een gekoppelde telefoon en kan op de Mac worden uitgeschakeld.
 - Mac: vraag Toegankelijkheidstoestemming om muis- en toetsenbordinvoer naar apps te sturen.
 - Mac: bestaande gegevens en instellingen worden bij de overgang naar de nieuwe app-opslag automatisch overgezet.
+- Mac: na een update moet je DOT opnieuw aanzetten bij Toegankelijkheid, omdat de app nog niet met een vaste ontwikkelaarssleutel is ondertekend.
 
 ## [0.1.2]
 

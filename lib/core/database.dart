@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// Opens the single local DOT database. Pass [factory] in tests
@@ -8,7 +11,14 @@ class DotDatabase {
 
   static Future<Database> open({DatabaseFactory? factory, String? path}) async {
     final f = factory ?? databaseFactory;
-    final dbPath = path ?? p.join(await f.getDatabasesPath(), 'dot.db');
+    final dbPath =
+        path ??
+        p.join(
+          Platform.isMacOS
+              ? (await getApplicationSupportDirectory()).path
+              : await f.getDatabasesPath(),
+          'dot.db',
+        );
     return f.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
