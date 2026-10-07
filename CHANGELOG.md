@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1]
+
+- Nieuw app-icoon: blauwe dot met verloop op zwart.
+- Opgelost: de Mac-app bleef zwart na installatie uit de DMG. Het menubalkicoon laadt nu correct en een fout in de platformkoppeling blokkeert de app niet meer.
+
 ## [0.1.0]
 
 Eerste versie van DOT.

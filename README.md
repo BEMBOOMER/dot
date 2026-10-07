@@ -1,5 +1,7 @@
 # DOT
 
+<p align="center"><img src="docs/icon-preview.png" alt="DOT app icon" width="128"></p>
+
 DOT maakt van je Android-telefoon en MacBook één kleine, persoonlijke
 werkruimte. Deel tekst, links, bestanden en korte notities over je lokale
 netwerk. DOT bewaart alles lokaal en vraagt geen account.

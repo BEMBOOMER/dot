@@ -59,7 +59,7 @@ No all-caps labels, no wide tracking.
 - Status behaviour as in CONCEPT.md (searching drift, pairing pull together, connected short bounce, syncing travelling dot, offline further apart, failed stops).
 
 ## App icon
-Accent sphere (same shading as the dots) centered on a white rounded square (macOS) / white adaptive background (Android). No text, no logo.
+Blue circle with a vertical gradient on a clean black background. The gradient runs from dark blue (#0B1E8C) at the bottom, through DOT blue (#3D5AFE), to light blue (#9DB0FF) at the top. Fine monochrome grain is applied to the circle only and should disappear at small sizes. There is no text, outline, or shadow. Android uses the full-bleed black icon and adaptive foreground; macOS uses a black rounded-square icon body on transparency for the Dock.
 
 ## Copy tone
 Dutch, short, friendly, plain. No em-dashes, no emoji, no exclamation marks.
