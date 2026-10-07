@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.2]
+
+- Downloads hebben nu duidelijke namen (`DOT-0.2.2.dmg`, `DOT-0.2.2.apk`) en een controlesom die je direct kunt controleren.
+- Nieuwe installatiehandleiding in de README, ook voor macOS 15 en nieuwer.
+
 ## [0.2.1]
 
 - Opgelost: vegen op het trackpad liet het hele scherm scrollen in plaats van de muis te bewegen.

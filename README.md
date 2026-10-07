@@ -1,68 +1,75 @@
 # DOT
 
-<p align="center"><img src="docs/icon-preview.png" alt="DOT app icon" width="128"></p>
+DOT verbindt je Android-telefoon en MacBook, zodat je lokaal tekst, links,
+bestanden en korte notities kunt delen.
 
-DOT maakt van je Android-telefoon en MacBook één kleine, persoonlijke
-werkruimte. Deel tekst, links, bestanden en korte notities over je lokale
-netwerk. DOT bewaart alles lokaal en vraagt geen account.
+<p align="center"><img src="docs/icon-preview.png" alt="DOT app-icoon" width="128"></p>
 
-## Installeren
+## Downloaden
 
-### Android
+Ga naar de [laatste release](https://github.com/BEMBOOMER/dot/releases/latest)
+en download het bestand voor je apparaat:
 
-1. Download de APK uit [GitHub Releases](https://github.com/BEMBOOMER/dot/releases/latest).
-2. Open de APK op je telefoon.
-3. Sta, als Android daarom vraagt, **Installeren uit onbekende bron** toe voor
-   je browser of bestandsbeheerder.
+- **Mac:** `DOT-<versie>.dmg`
+- **Android:** `DOT-<versie>.apk`
+- `checksums-sha256.txt` bevat de SHA-256-controlesommen van beide bestanden.
 
-### macOS
+DOT heeft geen account of cloud nodig. Je gegevens blijven op je apparaten en
+worden via je lokale netwerk gedeeld.
 
-1. Download `DOT.dmg` uit GitHub Releases en open het bestand.
+## Installeren op je Mac
+
+1. Open `DOT-<versie>.dmg`.
 2. Sleep DOT naar **Programma's**.
-3. Open DOT de eerste keer met rechtsklik > **Open**, omdat de app niet
-   genotariseerd is.
+3. Start DOT vanuit Programma's.
 
-## Eerste koppeling
+Bij de eerste start kan macOS de app blokkeren omdat DOT nog niet is
+genotariseerd. Ga dan naar **Systeeminstellingen > Privacy en beveiliging**,
+scroll naar beneden en klik op **Toch openen**. Op macOS 15 en nieuwer werkt
+rechtsklik > **Open** hiervoor niet meer.
 
-De MacBook is het host-apparaat en de Android-telefoon maakt verbinding.
+De huidige release-build werkt vanaf macOS 12. De optie **Starten bij
+inloggen** werkt vanaf macOS 13.
 
-1. Open DOT op de MacBook en kies **Apparaat koppelen**.
-2. Open DOT op Android en kies **Apparaat koppelen**.
-3. Scan op Android de QR-code die op de MacBook verschijnt.
-4. Controleer op beide schermen de apparaatnaam en bevestig de koppeling.
-5. Staat scannen niet klaar, kies dan **Handmatig verbinden** en gebruik het
-   IP-adres, de poort en de zescijferige code van de MacBook.
+## Installeren op Android
 
-Daarna onthouden beide apparaten elkaar en proberen ze automatisch opnieuw te
-verbinden wanneer dat is ingeschakeld.
+1. Download `DOT-<versie>.apk` op je telefoon.
+2. Sta, als Android daarom vraagt, **Installeren uit deze bron** toe voor je
+   browser of bestandsbeheerder.
+3. Open de APK en rond de installatie af.
+
+DOT werkt op Android 6 en nieuwer.
+
+## Koppelen
+
+De Mac is het host-apparaat. Open DOT op beide apparaten, kies **Apparaat
+koppelen** en scan op Android de QR-code die op de Mac verschijnt. Controleer
+de apparaatnaam en bevestig de koppeling op beide apparaten.
+
+Werkt scannen niet, kies dan **Handmatig verbinden** en gebruik het IP-adres, de
+poort en de code van zes tekens van de Mac. Daarna onthouden beide apparaten
+elkaar en verbinden ze automatisch opnieuw wanneer dat is ingeschakeld.
 
 ## Bediening op afstand
 
-Gebruik je Android-telefoon als trackpad, presentatieklikker of
-media-afstandsbediening voor je Mac. Koppel eerst de telefoon met de Mac en zet
-op de Mac **Bediening op afstand** aan in Instellingen. Geef DOT ook toestemming
-voor Toegankelijkheid via **Systeeminstellingen > Privacy en beveiliging >
-Toegankelijkheid** en zet DOT aan. macOS heeft deze toestemming nodig om invoer
-naar andere apps te sturen.
+Je kunt Android ook gebruiken als trackpad, presentatieklikker of
+media-afstandsbediening voor je Mac. Zet **Bediening op afstand** aan in de
+instellingen van DOT op de Mac.
 
-Open op Android **Bediening** in de werkruimte en kies een tab:
+Geef DOT daarna toegang tot Toegankelijkheid:
 
-- **Trackpad**: beweeg met één vinger, tik om te klikken, tik met twee vingers
-  voor rechtsklik, tik tweemaal of houd vast en sleep. Scroll met twee vingers.
-- **Presentatie**: gebruik **Vorige** en **Volgende** of de volumetoetsen van je telefoon om door dia's te bladeren. **Start**, **Keynote starten**, **Zwart scherm** en **Stop** bedienen de presentatie. Tijdens deze tab blijft het telefoonscherm aan.
-- **Media**: bedien afspelen/pauzeren, vorig/volgend nummer, volume en dempen.
+1. Open **Systeeminstellingen > Privacy en beveiliging > Toegankelijkheid**.
+2. Sleep DOT vanuit **Programma's** naar de lijst, of klik op de **+**-knop en
+   voeg DOT toe.
+3. Zet DOT aan in de lijst.
 
-**Start** stuurt de algemene sneltoets voor een diavoorstelling. Open Keynote
-en maak het actief voordat je **Keynote starten** kiest. Open bij PowerPoint of
-Google Slides eerst je presentatie en start de diavoorstelling zo nodig in die
-app. **Vorige** en **Volgende** sturen de dia's aan zolang de presentatie actief
-is. Gebruik **Zwart scherm** om tijdelijk de aandacht op de spreker te richten
-en **Stop** om te eindigen.
+Na een update van de Mac-app moet je DOT uit deze lijst verwijderen en opnieuw
+toevoegen. DOT is nog niet ondertekend met een Apple-ontwikkelaarscertificaat,
+waardoor macOS de toestemming aan de nieuwe app-versie niet altijd overneemt.
 
-Alleen een gekoppelde telefoon kan invoer sturen wanneer bediening en
-Toegankelijkheid zijn ingeschakeld. Je kunt bediening op afstand altijd
-uitschakelen via Instellingen op de Mac. Zonder Toegankelijkheid kan DOT de Mac
-niet bedienen.
+Op Android vind je **Bediening** in de werkruimte. Daar kun je wisselen tussen
+**Trackpad**, **Presentatie** en **Media**. Alleen een gekoppelde telefoon kan
+invoer sturen. Zonder Toegankelijkheid kan DOT de Mac niet bedienen.
 
 ## Privacy
 
@@ -106,12 +113,13 @@ git tag v0.1.0
 git push --tags
 ```
 
-De releaseworkflow bouwt de APK en DMG, maakt checksums en gebruikt de
-`[0.1.0]`-sectie uit `CHANGELOG.md` als release notes. Zonder de Android
-keystore wordt een niet-ondertekende APK met debug-signing fallback gemaakt.
-Notarization van de DMG is optioneel en gebruikt de Apple-secrets uit de
-workflow.
+De releaseworkflow bouwt `DOT-<versie>.apk` en `DOT-<versie>.dmg`, maakt
+`checksums-sha256.txt` en gebruikt de `[0.1.0]`-sectie uit `CHANGELOG.md` als
+release notes. Zonder de Android-keystore wordt een niet-ondertekende APK met
+debug-signing fallback gemaakt. Notarization van de DMG is optioneel en
+gebruikt de Apple-secrets uit de workflow.
 
 ## Licentie
 
-MIT, zie [LICENSE](LICENSE). Gemaakt door Roelof Junior Haar ([@bemooks](https://instagram.com/bemooks)).
+MIT, zie [LICENSE](LICENSE). Gemaakt door Roelof Junior Haar
+([@bemooks](https://instagram.com/bemooks)).
