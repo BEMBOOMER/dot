@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.2]
+
+- Opgelost: koppelen mislukte met "De code klopt niet of je Mac is niet bereikbaar" zodra het DOT-venster op de Mac de focus verloor. De Mac blijft nu altijd bereikbaar.
+- Opgelost: een systeemmelding op Android (zoals de vraag om cameratoegang) verbreekt de verbinding niet meer.
+
 ## [0.1.1]
 
 - Nieuw app-icoon: blauwe dot met verloop op zwart.
