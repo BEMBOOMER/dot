@@ -21,7 +21,15 @@
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<string>11.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>DOT</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>DOT gebruikt je lokale netwerk om je eigen apparaten te verbinden.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_dotlink._tcp</string>
+	</array>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>

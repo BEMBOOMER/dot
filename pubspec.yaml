@@ -84,6 +84,8 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/icons/dot_tray_template.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -123,3 +125,8 @@ flutter:
     - family: SpaceGrotesk
       fonts:
         - asset: assets/fonts/SpaceGrotesk.ttf
+
+flutter_launcher_icons:
+  android: true
+  macos: true
+  image_path: assets/icons/dot_tray_template.svg

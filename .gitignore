@@ -9,3 +9,5 @@ android/key.properties
 macos/Pods/
 .DS_Store
 .agents/*.log
+.harness/
+.agents/*.txt

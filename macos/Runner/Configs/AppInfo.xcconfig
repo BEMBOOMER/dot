@@ -5,7 +5,8 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = dot
+PRODUCT_NAME = DOT
+MACOSX_DEPLOYMENT_TARGET = 11.0
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = com.bemooks.dot
