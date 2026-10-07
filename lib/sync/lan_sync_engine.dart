@@ -317,7 +317,9 @@ class LanSyncEngine extends SyncEngine {
 
   @override
   Future<void> onAppLifecycle({required bool active}) async {
-    _activeApp = active;
+    // Host connection acceptance must also remain active without window focus.
+    _activeApp = isHost || active;
+    if (isHost) return;
     if (!active) {
       await stop();
     } else {

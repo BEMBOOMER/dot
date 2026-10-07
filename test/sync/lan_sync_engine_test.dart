@@ -130,6 +130,90 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
+  test(
+    'host keeps its listener and pairing offer across lifecycle changes',
+    () async {
+      final root = await Directory.systemTemp.createTemp('dot-host-lifecycle-');
+      final host = await Fixture.create(
+        Directory('${root.path}/host'),
+        host: true,
+      );
+      final client = await Fixture.create(
+        Directory('${root.path}/client'),
+        host: false,
+      );
+      final subscription = host.engine.events.listen((event) {
+        if (event is PairRequestEvent) {
+          unawaited(
+            host.engine.respondToPairRequest(event.request.requestId, true),
+          );
+        }
+      });
+      try {
+        final offer = await host.engine.createPairingOffer();
+        await host.engine.onAppLifecycle(active: false);
+        expect(host.engine.tokens.valid, isTrue);
+        // The manual preview contacts the original listener and validates its token.
+        final preview = await client.engine.previewPairing(
+          '${offer.host}:${offer.port} ${offer.manualCode}',
+        );
+        await host.engine.onAppLifecycle(active: true);
+        await host.engine.onAppLifecycle(active: false);
+        await client.engine.confirmPairing(preview);
+        await eventually(
+          () async =>
+              host.engine.status == ConnectionStatus.connected &&
+              client.engine.status == ConnectionStatus.connected,
+        );
+        expect(host.engine.tokens.valid, isFalse);
+        await host.engine.onAppLifecycle(active: false);
+        final item = await client.repository.upsertLocal(client.item());
+        await client.engine.syncNow();
+        await eventually(
+          () async => (await host.repository.get(item.id)) != null,
+        );
+      } finally {
+        await subscription.cancel();
+        await client.close();
+        await host.close();
+        await root.delete(recursive: true);
+      }
+    },
+  );
+
+  test('client disconnects in background and reconnects on resume', () async {
+    final root = await Directory.systemTemp.createTemp('dot-client-lifecycle-');
+    final host = await Fixture.create(
+      Directory('${root.path}/host'),
+      host: true,
+    );
+    final client = await Fixture.create(
+      Directory('${root.path}/client'),
+      host: false,
+    );
+    try {
+      await pair(host, client);
+      client.settings.autoReconnect = true;
+      await client.engine.onAppLifecycle(active: false);
+      expect(client.engine.status, ConnectionStatus.offline);
+      await eventually(
+        () async => host.engine.status != ConnectionStatus.connected,
+      );
+      final queued = await client.repository.upsertLocal(client.item());
+      await client.engine.onAppLifecycle(active: true);
+      await eventually(
+        () async =>
+            host.engine.status == ConnectionStatus.connected &&
+            client.engine.status == ConnectionStatus.connected &&
+            (await host.repository.get(queued.id)) != null,
+      );
+    } finally {
+      await client.close();
+      await host.close();
+      await root.delete(recursive: true);
+    }
+  });
+
   test('TLS pin rejects any other fingerprint', () async {
     final certificate = await TlsCertificate.load(MemorySecretStore());
     final server = HostServer();

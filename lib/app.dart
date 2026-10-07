@@ -34,7 +34,10 @@ class _DotAppState extends State<DotApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     unawaited(
       widget.state.engine.onAppLifecycle(
-        active: state == AppLifecycleState.resumed,
+        // Focus loss and permission dialogs do not background networking.
+        active:
+            state == AppLifecycleState.resumed ||
+            state == AppLifecycleState.inactive,
       ),
     );
   }

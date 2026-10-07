@@ -51,7 +51,7 @@ void main() {
       devices: devices,
       settings: SettingsStore(await SharedPreferences.getInstance()),
       supportDirectory: directory,
-      engine: FakeSyncEngine(
+      engine: _LifecycleEngine(
         repository: repository,
         devices: devices,
         localDeviceId: 'local',
@@ -510,6 +510,37 @@ void main() {
     );
   });
 
+  testWidgets('inactive keeps networking active; background states stop it', (
+    tester,
+  ) async {
+    final engine = state.engine as _LifecycleEngine;
+    appOwnsState = true;
+    await tester.pumpWidget(DotApp(state: state));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(milliseconds: 1));
+    engine.activeStates.clear();
+    engine.stopCalls = 0;
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(engine.activeStates, [true]);
+    expect(engine.stopCalls, 0);
+
+    for (final lifecycle in [
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.detached,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(lifecycle);
+      expect(engine.activeStates.last, isFalse);
+    }
+    expect(engine.stopCalls, 3);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(engine.activeStates.last, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('Eerst bekijken enters demo mode and opens workspace', (
     tester,
   ) async {
@@ -593,5 +624,31 @@ class _RecoveryEngine extends FakeSyncEngine {
   Future<void> reconnect() async {
     reconnectCalls++;
     setStatus(ConnectionStatus.connected);
+  }
+}
+
+class _LifecycleEngine extends FakeSyncEngine {
+  _LifecycleEngine({
+    required super.repository,
+    required super.devices,
+    required super.localDeviceId,
+    required super.localName,
+    super.connectionDelay,
+    super.sendDelay,
+  });
+
+  final activeStates = <bool>[];
+  int stopCalls = 0;
+
+  @override
+  Future<void> onAppLifecycle({required bool active}) async {
+    activeStates.add(active);
+    await super.onAppLifecycle(active: active);
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalls++;
+    await super.stop();
   }
 }
