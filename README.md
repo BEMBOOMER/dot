@@ -36,6 +36,34 @@ De MacBook is het host-apparaat en de Android-telefoon maakt verbinding.
 Daarna onthouden beide apparaten elkaar en proberen ze automatisch opnieuw te
 verbinden wanneer dat is ingeschakeld.
 
+## Bediening op afstand
+
+Gebruik je Android-telefoon als trackpad, presentatieklikker of
+media-afstandsbediening voor je Mac. Koppel eerst de telefoon met de Mac en zet
+op de Mac **Bediening op afstand** aan in Instellingen. Geef DOT ook toestemming
+voor Toegankelijkheid via **Systeeminstellingen > Privacy en beveiliging >
+Toegankelijkheid** en zet DOT aan. macOS heeft deze toestemming nodig om invoer
+naar andere apps te sturen.
+
+Open op Android **Bediening** in de werkruimte en kies een tab:
+
+- **Trackpad**: beweeg met één vinger, tik om te klikken, tik met twee vingers
+  voor rechtsklik, tik tweemaal of houd vast en sleep. Scroll met twee vingers.
+- **Presentatie**: gebruik **Vorige** en **Volgende** of de volumetoetsen van je telefoon om door dia's te bladeren. **Start**, **Keynote starten**, **Zwart scherm** en **Stop** bedienen de presentatie. Tijdens deze tab blijft het telefoonscherm aan.
+- **Media**: bedien afspelen/pauzeren, vorig/volgend nummer, volume en dempen.
+
+**Start** stuurt de algemene sneltoets voor een diavoorstelling. Open Keynote
+en maak het actief voordat je **Keynote starten** kiest. Open bij PowerPoint of
+Google Slides eerst je presentatie en start de diavoorstelling zo nodig in die
+app. **Vorige** en **Volgende** sturen de dia's aan zolang de presentatie actief
+is. Gebruik **Zwart scherm** om tijdelijk de aandacht op de spreker te richten
+en **Stop** om te eindigen.
+
+Alleen een gekoppelde telefoon kan invoer sturen wanneer bediening en
+Toegankelijkheid zijn ingeschakeld. Je kunt bediening op afstand altijd
+uitschakelen via Instellingen op de Mac. Zonder Toegankelijkheid kan DOT de Mac
+niet bedienen.
+
 ## Privacy
 
 Je werkruimte staat lokaal op je apparaten. DOT gebruikt geen cloud en geen

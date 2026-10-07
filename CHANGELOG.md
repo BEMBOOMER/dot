@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0]
+
+- Nieuw: bedien je Mac vanaf Android als trackpad, presentatieklikker en media-afstandsbediening.
+- Nieuw: bediening op afstand is alleen beschikbaar voor een gekoppelde telefoon en kan op de Mac worden uitgeschakeld.
+- Mac: vraag Toegankelijkheidstoestemming om muis- en toetsenbordinvoer naar apps te sturen.
+- Mac: bestaande gegevens en instellingen worden bij de overgang naar de nieuwe app-opslag automatisch overgezet.
+
 ## [0.1.2]
 
 - Opgelost: koppelen mislukte met "De code klopt niet of je Mac is niet bereikbaar" zodra het DOT-venster op de Mac de focus verloor. De Mac blijft nu altijd bereikbaar.

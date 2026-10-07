@@ -208,3 +208,65 @@ notificaties, maar toont de ontvangst in de app.
   bekende items uit. Een onbekend toekomstig itemtype wordt overgeslagen
   zonder crash. Bij een onverenigbare protocol-major verschijnt een duidelijke
   foutstatus.
+
+## 19. Bediening op afstand
+
+Voer deze controles uit met een gekoppelde Android-telefoon en Mac op hetzelfde wifi-netwerk.
+
+### Toegankelijkheid geweigerd en toegestaan
+
+**Stappen**
+
+1. Zet op de Mac bij **Systeeminstellingen > Privacy en beveiliging > Toegankelijkheid** DOT uit.
+2. Open **Bediening** op Android.
+3. Zet DOT weer aan bij Toegankelijkheid en probeer de trackpad opnieuw.
+
+**Verwacht resultaat:** bij geweigerde toestemming verschijnt een melding dat Toegankelijkheid nodig is en beweegt de Mac-cursor niet. Na toestemming beweegt de cursor mee met de vinger op het trackpad.
+
+### Koppeling ingetrokken tijdens bediening
+
+**Stappen**
+
+1. Begin het trackpad te gebruiken vanaf de gekoppelde telefoon.
+2. Verwijder de telefoon in **Apparaten** op de Mac.
+3. Probeer opnieuw te bewegen, klikken en scrollen.
+
+**Verwacht resultaat:** na het intrekken van de koppeling verwerkt de Mac geen invoer meer van die telefoon.
+
+### Bediening uitgeschakeld op de Mac
+
+**Stappen**
+
+1. Zet **Bediening op afstand** uit in Instellingen op de Mac.
+2. Probeer vanaf Android te bewegen, klikken en een toets te sturen.
+
+**Verwacht resultaat:** de Mac verwerkt geen invoer zolang de instelling uitstaat. Zet de instelling weer aan en controleer dat bediening na herstel van de status weer werkt.
+
+### Presentatieklikker verandert het systeemvolume niet
+
+**Stappen**
+
+1. Open een diavoorstelling en kies op Android **Bediening > Presentatie**.
+2. Druk op de volumetoetsen van de telefoon om naar vorige en volgende dia te gaan.
+3. Controleer het volume van de Mac.
+
+**Verwacht resultaat:** de dia verandert; het systeemvolume van de Mac blijft gelijk.
+
+### Scherm blijft aan tijdens presenteren
+
+**Stappen**
+
+1. Open op Android **Bediening > Presentatie**.
+2. Laat de telefoon liggen tot de normale scherm-time-out zou verlopen.
+
+**Verwacht resultaat:** het telefoonscherm blijft aan zolang de presentatieweergave actief is.
+
+### Reactiesnelheid op hetzelfde wifi-netwerk
+
+**Stappen**
+
+1. Verbind de gekoppelde telefoon en Mac met hetzelfde wifi-netwerk.
+2. Gebruik het trackpad om de cursor te bewegen en herhaal klikken en scrollen.
+3. Gebruik **Vorige** en **Volgende** in een presentatie.
+
+**Verwacht resultaat:** bewegingen en acties voelen vrijwel direct aan, zonder merkbare ophoping of achterblijvende invoer.
