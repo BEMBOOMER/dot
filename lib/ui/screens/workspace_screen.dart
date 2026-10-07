@@ -105,33 +105,40 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             ),
           ),
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Row(
-            children: _filterMap.entries.map((entry) {
-              final isSelected = _selectedFilter == entry.value;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: ChoiceChip(
-                  label: Text(entry.key),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _selectedFilter = entry.value);
-                    }
-                  },
-                  selectedColor: DotColors.lime,
-                  labelStyle: TextStyle(
-                    color: isSelected ? DotColors.ink : null,
-                    fontFamily: 'SpaceGrotesk',
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+        ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (bounds) => const LinearGradient(
+            colors: [Colors.white, Colors.white, Colors.transparent],
+            stops: [0, 0.92, 1],
+          ).createShader(bounds),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 0, 32, 0),
+            child: Row(
+              children: _filterMap.entries.map((entry) {
+                final isSelected = _selectedFilter == entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ChoiceChip(
+                    label: Text(entry.key),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedFilter = entry.value);
+                      }
+                    },
+                    selectedColor: DotColors.lime,
+                    labelStyle: TextStyle(
+                      color: isSelected ? DotColors.ink : null,
+                      fontFamily: 'SpaceGrotesk',
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -216,7 +223,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'van ${item.originName}',
+            itemOriginLabel(context, item),
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
@@ -311,7 +318,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               children: [
                 // DotsStage on top
                 SizedBox(
-                  height: 120,
+                  height: isMac ? 190 : 150,
                   child: Center(
                     child: DotsStage(
                       key: _dotsStageKey,

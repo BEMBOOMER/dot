@@ -1,9 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models.dart';
 import '../../core/sync_engine.dart';
 import '../theme/dot_theme.dart';
+
+String itemOriginLabel(BuildContext context, DotItem item) {
+  final engine = context.watch<SyncEngine?>();
+  if (item.originDeviceId == engine?.localDeviceId) {
+    return Platform.isMacOS ? 'Van deze Mac' : 'Van deze telefoon';
+  }
+  return 'Van ${item.originName}';
+}
 
 class BrutalCard extends StatelessWidget {
   final Widget child;
@@ -275,7 +285,7 @@ class ItemCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'van ${item.originName}',
+              itemOriginLabel(context, item),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).textTheme.bodySmall?.color
                     ?.withValues(alpha: 0.7),

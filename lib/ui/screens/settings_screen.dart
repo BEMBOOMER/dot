@@ -17,7 +17,12 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Instellingen')),
+      appBar: AppBar(
+        title: const Text(
+          'Instellingen',
+          style: TextStyle(fontFamily: 'ArchivoBlack'),
+        ),
+      ),
       body: Consumer2<SettingsStore, AppState>(
         builder: (context, settings, appState, child) {
           return ListView(

@@ -12,7 +12,12 @@ class DevicesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Apparaten')),
+      appBar: AppBar(
+        title: const Text(
+          'Apparaten',
+          style: TextStyle(fontFamily: 'ArchivoBlack'),
+        ),
+      ),
       body: Consumer2<DeviceStore, SyncEngine>(
         builder: (context, devicesStore, engine, child) {
           final devices = devicesStore.devices;

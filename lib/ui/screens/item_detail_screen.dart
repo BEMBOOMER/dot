@@ -88,7 +88,12 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
             final item = snapshot.data;
             if (item == null || item.deleted) {
               return Scaffold(
-                appBar: AppBar(title: const Text('Details')),
+                appBar: AppBar(
+                  title: const Text(
+                    'Details',
+                    style: TextStyle(fontFamily: 'ArchivoBlack'),
+                  ),
+                ),
                 body: const Center(child: Text('Item niet gevonden')),
               );
             }
@@ -100,7 +105,10 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
             return Scaffold(
               appBar: AppBar(
-                title: Text(itemTypeLabel(item.type)),
+                title: Text(
+                  itemTypeLabel(item.type),
+                  style: const TextStyle(fontFamily: 'ArchivoBlack'),
+                ),
                 actions: [
                   IconButton(
                     icon: Icon(
@@ -180,9 +188,8 @@ class _ItemDetailScreenState extends State<ItemDetailScreen> {
 
                   Row(
                     children: [
-                      const Text('van '),
                       Text(
-                        item.originName,
+                        itemOriginLabel(context, item),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],

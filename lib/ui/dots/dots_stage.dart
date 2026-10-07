@@ -189,7 +189,10 @@ class _DotsStagePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final baseRadius = math.min(size.width, size.height) * 0.15;
+    final baseRadius = math.min(
+      size.width / 4,
+      size.height >= 180 ? 42.0 : 32.0,
+    );
 
     final oldLayout = _computeLayout(previousStatus, size, baseRadius);
     final newLayout = _computeLayout(status, size, baseRadius);

@@ -12,9 +12,12 @@ import 'package:dot/core/sync_engine.dart';
 import 'package:dot/ui/dots/dots_stage.dart';
 import 'package:dot/ui/screens/item_detail_screen.dart';
 import 'package:dot/ui/screens/settings_screen.dart';
+import 'package:dot/ui/screens/pair_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:dot/ui/screens/workspace_screen.dart';
 import 'package:dot/ui/widgets/brutal_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -101,6 +104,102 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('host pairing starts after build and centers a large QR', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1180, 760));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(harness(const PairScreen()));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(state.engine.status, ConnectionStatus.pairing);
+    expect(find.text('Wacht op je telefoon…'), findsOneWidget);
+    final qr = find.byType(QrImageView);
+    expect(tester.widget<QrImageView>(qr).size, 240);
+    expect(tester.getCenter(qr).dx, closeTo(590, 1));
+    expect(find.widgetWithText(SelectableText, '127.0.0.1:0'), findsOneWidget);
+    expect(find.widgetWithText(SelectableText, 'DEMO01'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('manual client pairing previews the peer and can be cancelled', (
+    tester,
+  ) async {
+    await prepare(tester);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    for (final channel in ['event', 'deviceOrientation']) {
+      messenger.setMockMethodCallHandler(
+        MethodChannel('dev.steenbakker.mobile_scanner/scanner/$channel'),
+        (_) async => null,
+      );
+    }
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('dev.steenbakker.mobile_scanner/scanner/method'),
+      (call) async {
+        if (call.method == 'state') return 0;
+        if (call.method == 'request') return false;
+        return null;
+      },
+    );
+    final client = FakeSyncEngine(
+      repository: state.repository,
+      devices: state.devices,
+      localDeviceId: 'phone',
+      localName: 'Telefoon',
+      isHost: false,
+    );
+    await tester.pumpWidget(
+      harness(
+        ChangeNotifierProvider<SyncEngine>.value(
+          value: client,
+          child: const PairScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), '192.168.1.20:48620');
+    await tester.enterText(fields.at(1), 'ABC123');
+    await tester.ensureVisible(find.text('Verbinden'));
+    await tester.tap(find.text('Verbinden'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bevestig koppeling'), findsOneWidget);
+    expect(find.text('Annuleren'), findsOneWidget);
+    expect(find.byType(BrutalCard), findsOneWidget);
+    expect(
+      find.textContaining('Verbinden met Demo-apparaat op'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Annuleren'));
+    await tester.pumpAndSettle();
+    expect(find.text('Handmatig verbinden'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    client.dispose();
+  });
+
+  testWidgets('settings restrict desktop controls to macOS', (tester) async {
+    await prepare(tester);
+    await tester.pumpWidget(harness(const SettingsScreen()));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Starten bij inloggen'),
+      Platform.isMacOS ? findsOneWidget : findsNothing,
+    );
+    expect(
+      find.text('Menubalkicoon'),
+      Platform.isMacOS ? findsOneWidget : findsNothing,
+    );
+    expect(
+      find.text('Downloadlocatie'),
+      Platform.isMacOS ? findsOneWidget : findsNothing,
+    );
+    expect(
+      tester.widget<Text>(find.text('Instellingen')).style?.fontFamily,
+      'ArchivoBlack',
+    );
+  });
+
   testWidgets('workspace renders items and each type chip filters', (
     tester,
   ) async {
@@ -116,6 +215,10 @@ void main() {
     await tester.pumpWidget(harness(const WorkspaceScreen()));
     await settleDatabase(tester);
     expect(find.byType(ItemCard), findsNWidgets(4));
+    expect(
+      find.text(Platform.isMacOS ? 'Van deze Mac' : 'Van deze telefoon'),
+      findsNWidgets(4),
+    );
     final filters = {
       'Tekst': ItemType.text,
       'Links': ItemType.link,

@@ -9,6 +9,7 @@ import '../../core/sync_engine.dart';
 import '../../core/settings_store.dart';
 import '../../core/models.dart';
 import '../widgets/brutal_widgets.dart';
+import '../dots/dots_stage.dart';
 import '../theme/dot_theme.dart';
 
 class PairScreen extends StatefulWidget {
@@ -31,13 +32,17 @@ class _PairScreenState extends State<PairScreen> {
   final TextEditingController _codeController = TextEditingController();
   MobileScannerController? _scannerController;
   PairingPreview? _preview;
+  String? _clientError;
+  bool _completed = false;
 
   @override
   void initState() {
     super.initState();
     final engine = context.read<SyncEngine>();
     if (engine.isHost) {
-      _initHostMode(engine);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _initHostMode(engine);
+      });
     } else {
       _scannerController = MobileScannerController();
     }
@@ -62,7 +67,7 @@ class _PairScreenState extends State<PairScreen> {
       setState(() {
         _isLoading = false;
       });
-      _showError('Fout bij maken van koppelverzoek: $e');
+      _showError('Een koppelcode maken lukt nog niet. Probeer opnieuw.');
     }
   }
 
@@ -93,12 +98,26 @@ class _PairScreenState extends State<PairScreen> {
       if (event is PairRequestEvent) {
         _showPairConfirmDialog(event.request);
       } else if (event is PairedEvent) {
-        context.read<SettingsStore>().onboarded = true;
-        Navigator.pushReplacementNamed(context, '/workspace');
+        _finishPairing();
       } else if (event is PairingFailedEvent) {
-        _showError('Koppelen mislukt: ${event.message}');
+        if (engine.isHost) {
+          _showError('Koppelen lukt nog niet. Probeer opnieuw.');
+        } else {
+          setState(() {
+            _isLoading = false;
+            _clientError =
+                'Koppelen lukt nog niet. Controleer je Mac en probeer opnieuw.';
+          });
+        }
       }
     });
+  }
+
+  void _finishPairing() {
+    if (!mounted || _completed) return;
+    _completed = true;
+    context.read<SettingsStore>().onboarded = true;
+    Navigator.pushReplacementNamed(context, '/workspace');
   }
 
   void _showPairConfirmDialog(PairingRequest request) {
@@ -154,8 +173,10 @@ class _PairScreenState extends State<PairScreen> {
   }
 
   Future<void> _previewPairingClient(String payload) async {
+    if (_isLoading) return;
     final engine = context.read<SyncEngine>();
     setState(() {
+      _clientError = null;
       _isLoading = true;
     });
     try {
@@ -170,27 +191,34 @@ class _PairScreenState extends State<PairScreen> {
       setState(() {
         _isLoading = false;
       });
-      _showError('Ongeldige code of apparaat onbereikbaar: $e');
+      setState(
+        () => _clientError =
+            'De code klopt niet of je Mac is niet bereikbaar. Probeer opnieuw.',
+      );
     }
   }
 
   Future<void> _confirmPairingClient() async {
     if (_preview == null) return;
+    if (_isLoading) return;
     final engine = context.read<SyncEngine>();
     setState(() {
+      _clientError = null;
       _isLoading = true;
     });
     try {
       await engine.confirmPairing(_preview!);
       if (!mounted) return;
-      context.read<SettingsStore>().onboarded = true;
-      Navigator.pushReplacementNamed(context, '/workspace');
+      _finishPairing();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
-      _showError('Koppelen mislukt: $e');
+      setState(
+        () => _clientError =
+            'Koppelen lukt nog niet. Controleer je Mac en probeer opnieuw.',
+      );
     }
   }
 
@@ -222,101 +250,141 @@ class _PairScreenState extends State<PairScreen> {
     final minutes = _timeLeft.inMinutes;
     final seconds = (_timeLeft.inSeconds % 60).toString().padLeft(2, '0');
 
+    final expired = _timeLeft <= Duration.zero;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Scan deze QR-code met je telefoon',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontFamily: 'SpaceGrotesk',
-              fontWeight: FontWeight.bold,
-            ),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 150,
+                child: DotsStage(
+                  status: ConnectionStatus.pairing,
+                  reducedMotion: context.watch<SettingsStore>().reducedMotion,
+                ),
+              ),
+              const Text(
+                'Scan deze QR-code met DOT op je telefoon',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: inkColor, width: 2),
+                  boxShadow: [
+                    BoxShadow(color: inkColor, offset: const Offset(4, 4)),
+                  ],
+                ),
+                child: QrImageView(
+                  data: _offer!.qrPayload,
+                  version: QrVersions.auto,
+                  size: 240,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text('Handmatig verbinden'),
+              const SizedBox(height: 12),
+              const Text('Adres'),
+              SelectableText(
+                '${_offer!.host}:${_offer!.port}',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge?.copyWith(fontSize: 24),
+              ),
+              const SizedBox(height: 8),
+              const Text('Code'),
+              SelectableText(
+                _offer!.manualCode,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontSize: 28,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                expired
+                    ? 'Deze code is verlopen'
+                    : 'Nog $minutes:$seconds geldig',
+              ),
+              const SizedBox(height: 12),
+              if (expired)
+                BrutalButton(
+                  label: 'Nieuwe code',
+                  color: DotColors.coral,
+                  onPressed: () => _initHostMode(context.read<SyncEngine>()),
+                )
+              else
+                const Text('Wacht op je telefoon…'),
+            ],
           ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: inkColor, width: 2),
-              boxShadow: [
-                BoxShadow(color: inkColor, offset: const Offset(4, 4)),
-              ],
-            ),
-            child: QrImageView(
-              data: _offer!.qrPayload,
-              version: QrVersions.auto,
-              size: 200.0,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Handmatige code: ${_offer!.manualCode}',
-            style: const TextStyle(
-              fontFamily: 'ArchivoBlack',
-              fontSize: 22,
-              letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${_offer!.host}:${_offer!.port}',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Geldig nog: $minutes:$seconds',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: _timeLeft.inSeconds < 60 ? DotColors.coral : null,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildClientView() {
     if (_preview != null) {
-      return Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('Verbinden met', style: TextStyle(fontSize: 18)),
-            const SizedBox(height: 16),
-            Text(
-              _preview!.peerName,
-              style: const TextStyle(fontSize: 28, fontFamily: 'ArchivoBlack'),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text('${_preview!.host}:${_preview!.port}'),
-            const SizedBox(height: 48),
-            if (_isLoading)
-              const CircularProgressIndicator()
-            else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  BrutalButton(
-                    onPressed: _confirmPairingClient,
-                    label: 'Bevestig koppeling',
-                    color: DotColors.lime,
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                BrutalCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Verbinden met ${_preview!.peerName} op ${_preview!.host}',
+                          style: const TextStyle(
+                            fontFamily: 'ArchivoBlack',
+                            fontSize: 22,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        BrutalButton(
+                          onPressed: _isLoading ? null : _confirmPairingClient,
+                          label: 'Bevestig koppeling',
+                          color: DotColors.coral,
+                        ),
+                        const SizedBox(height: 16),
+                        BrutalButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () => setState(() {
+                                  _preview = null;
+                                  _clientError = null;
+                                }),
+                          label: 'Annuleren',
+                        ),
+                        if (_isLoading) ...[
+                          const SizedBox(height: 16),
+                          const Center(child: CircularProgressIndicator()),
+                        ],
+                      ],
+                    ),
                   ),
+                ),
+                if (_clientError != null) ...[
                   const SizedBox(height: 16),
-                  BrutalButton(
-                    onPressed: () => setState(() {
-                      _preview = null;
-                    }),
-                    label: 'Annuleren',
-                    color: DotColors.coral,
+                  Text(
+                    _clientError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ],
-              ),
-          ],
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -363,7 +431,7 @@ class _PairScreenState extends State<PairScreen> {
           TextField(
             controller: _hostController,
             decoration: const InputDecoration(
-              labelText: 'Host (IP:Poort)',
+              labelText: 'Adres (IP:poort)',
               hintText: '192.168.1.20:48620',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.all(Radius.circular(18)),
@@ -383,19 +451,31 @@ class _PairScreenState extends State<PairScreen> {
           ),
           const SizedBox(height: 24),
           BrutalButton(
-            onPressed: () {
-              final host = _hostController.text.trim();
-              final code = _codeController.text.trim();
-              if (host.isEmpty || code.isEmpty) {
-                _showError('Vul zowel het IP:poort als de koppelcode in.');
-                return;
-              }
-              final payload = '$host $code';
-              _previewPairingClient(payload);
-            },
+            onPressed: _isLoading
+                ? null
+                : () {
+                    final host = _hostController.text.trim();
+                    final code = _codeController.text.trim();
+                    if (host.isEmpty || code.isEmpty) {
+                      setState(
+                        () =>
+                            _clientError = 'Vul het adres en de koppelcode in.',
+                      );
+                      return;
+                    }
+                    final payload = '$host $code';
+                    _previewPairingClient(payload);
+                  },
             label: 'Verbinden',
             color: DotColors.coral,
           ),
+          if (_clientError != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _clientError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
         ],
       ),
     );
