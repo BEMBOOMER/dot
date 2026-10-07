@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
+
 import 'package:dot/app.dart';
 import 'package:dot/core/app_state.dart';
 import 'package:dot/core/database.dart';
@@ -107,23 +109,107 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('host pairing starts after build and centers a large QR', (
+  testWidgets(
+    'host pairing shows QR and instructions side by side without clipping',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1180, 760));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(harness(const PairScreen()));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(state.engine.status, ConnectionStatus.pairing);
+      expect(find.text('Wacht op je telefoon…'), findsOneWidget);
+      final qr = find.byType(QrImageView);
+      expect(tester.widget<QrImageView>(qr).size, 240);
+      final qrRect = tester.getRect(qr);
+      final waitingRect = tester.getRect(find.text('Wacht op je telefoon…'));
+      expect(qrRect.right, lessThan(waitingRect.left));
+      expect(qrRect.bottom, lessThan(760));
+      expect(waitingRect.bottom, lessThan(760));
+      expect(find.text('Nieuwe code'), findsOneWidget);
+      expect(
+        find.widgetWithText(SelectableText, '127.0.0.1:0'),
+        findsOneWidget,
+      );
+      expect(find.widgetWithText(SelectableText, 'DEMO01'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('host pairing remains scrollable in short desktop windows', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1180, 760));
+    await tester.binding.setSurfaceSize(const Size(1000, 320));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(harness(const PairScreen()));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Wacht op je telefoon…'));
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(find.text('Wacht op je telefoon…'));
+    expect(rect.top, greaterThanOrEqualTo(56));
+    expect(rect.bottom, lessThanOrEqualTo(320));
     expect(tester.takeException(), isNull);
-    expect(state.engine.status, ConnectionStatus.pairing);
-    expect(find.text('Wacht op je telefoon…'), findsOneWidget);
-    final qr = find.byType(QrImageView);
-    expect(tester.widget<QrImageView>(qr).size, 240);
-    expect(tester.getCenter(qr).dx, closeTo(590, 1));
-    expect(find.widgetWithText(SelectableText, '127.0.0.1:0'), findsOneWidget);
-    expect(find.widgetWithText(SelectableText, 'DEMO01'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('phone host pairing keeps the centered single column', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(412, 892));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(harness(const PairScreen()));
+    await tester.pumpAndSettle();
+    expect(tester.getCenter(find.byType(QrImageView)).dx, closeTo(206, 1));
+    expect(
+      tester.getRect(find.text('Adres')).top,
+      greaterThan(tester.getRect(find.byType(QrImageView)).bottom),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'file picker adds every selected local file and handles cancellation',
+    (tester) async {
+      await prepare(tester);
+      final originalPicker = FilePickerPlatform.instance;
+      final picker = _TestFilePicker();
+      FilePickerPlatform.instance = picker;
+      addTearDown(() => FilePickerPlatform.instance = originalPicker);
+      await tester.runAsync(() async {
+        final first = await File('${directory.path}/first.txt')
+            .writeAsString('first');
+        final second = await File('${directory.path}/second.txt')
+            .writeAsString('second');
+        picker.files = [
+          _TestPlatformFile(Uri.file(first.path)),
+          _TestPlatformFile(Uri.file(second.path)),
+        ];
+      });
+      await tester.pumpWidget(harness(const WorkspaceScreen()));
+      await settleDatabase(tester);
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Bestand kiezen'));
+        await Future.doWhile(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          return (await state.repository.all()).length != 2;
+        }).timeout(const Duration(seconds: 5));
+      });
+      await settleDatabase(tester);
+      expect(find.byType(ItemCard), findsNWidgets(2));
+      expect(find.text('first.txt'), findsOneWidget);
+      expect(find.text('second.txt'), findsOneWidget);
+      picker.files = [];
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => tester.tap(find.text('Bestand kiezen')));
+      await settleDatabase(tester);
+      expect(find.byType(ItemCard), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('manual client pairing previews the peer and can be cancelled', (
     tester,
@@ -183,6 +269,24 @@ void main() {
 
   testWidgets('settings restrict desktop controls to macOS', (tester) async {
     await prepare(tester);
+    const loginItemChannel = MethodChannel('dot/login_item');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(loginItemChannel, (call) async {
+      switch (call.method) {
+        case 'isSupported':
+          return true;
+        case 'isEnabled':
+          return false;
+        case 'setEnabled':
+          return true;
+        default:
+          return null;
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(loginItemChannel, null);
+    });
     await tester.pumpWidget(harness(const SettingsScreen()));
     await tester.pumpAndSettle();
     expect(
@@ -374,4 +478,33 @@ void main() {
     expect(find.byType(SettingsScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+}
+
+class _TestFilePicker extends FilePickerPlatform {
+  List<PlatformFile> files = [];
+  @override
+  Future<List<PlatformFile>> pickFiles({
+    String? dialogTitle,
+    String? initialDirectory,
+    FileType type = FileType.any,
+    List<String>? allowedExtensions,
+    Function(FilePickerStatus)? onFileLoading,
+    int compressionQuality = 0,
+    AndroidOptions androidOptions = const AndroidOptions(),
+    DarwinOptions darwinOptions = const DarwinOptions(),
+    WindowsOptions windowsOptions = const WindowsOptions(),
+    LinuxOptions linuxOptions = const LinuxOptions(),
+    WebOptions webOptions = const WebOptions(),
+  }) async => files;
+}
+
+final class _TestPlatformFile extends PlatformFile {
+  _TestPlatformFile(this.uri);
+  @override
+  final Uri uri;
+  @override
+  String get name => uri.pathSegments.last;
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('Only file paths are used by this test');
 }

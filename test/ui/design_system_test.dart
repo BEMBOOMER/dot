@@ -1,9 +1,66 @@
+import 'dart:ui' as ui;
+
+import 'package:dot/ui/dots/dot_sphere.dart';
 import 'package:dot/ui/theme/dot_theme.dart';
 import 'package:dot/ui/widgets/dot_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'sphere preserves its base hue with at most twenty percent shading',
+    () async {
+      for (final base in [
+        const Color(0xFF3D5AFE),
+        const Color(0xFF6C83FF),
+        const Color(0xFF0E0E10),
+        const Color(0xFFF4F4F6),
+      ]) {
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder);
+        DotSphere(
+          baseColor: base,
+          radius: 70,
+          center: const Offset(100, 90),
+        ).paint(canvas, const Size(200, 200));
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(200, 200);
+        final pixels = (await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        ))!;
+        final channels = [
+          ((base.r * 255).round()),
+          ((base.g * 255).round()),
+          ((base.b * 255).round()),
+        ];
+        for (final point in [
+          const Offset(100, 90),
+          const Offset(155, 125),
+          const Offset(100, 150),
+        ]) {
+          final offset = (point.dy.toInt() * 200 + point.dx.toInt()) * 4;
+          for (var channel = 0; channel < 3; channel++) {
+            expect(
+              pixels.getUint8(offset + channel),
+              greaterThanOrEqualTo((channels[channel] * .8).floor()),
+            );
+          }
+        }
+        final center = (90 * 200 + 100) * 4;
+        for (var channel = 0; channel < 3; channel++) {
+          expect(
+            pixels.getUint8(center + channel),
+            closeTo(channels[channel], 16),
+          );
+        }
+        image.dispose();
+        picture.dispose();
+      }
+    },
+  );
+
   test('theme uses the design tokens in both appearances', () {
     expect(lightTheme.scaffoldBackgroundColor, const Color(0xFFF7F7F8));
     expect(darkTheme.scaffoldBackgroundColor, const Color(0xFF0B0B0D));

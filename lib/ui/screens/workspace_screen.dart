@@ -457,89 +457,93 @@ class _AddModalSheet extends StatelessWidget {
         color: surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (MediaQuery.sizeOf(context).width <= 800) ...[
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.dividerColor,
-                  borderRadius: BorderRadius.circular(2),
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (MediaQuery.sizeOf(context).width <= 800) ...[
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.dividerColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
+              const SizedBox(height: 24),
+            ],
+            const Text(
+              'Toevoegen',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(height: 24),
-          ],
-          const Text(
-            'Toevoegen',
-            style: TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.text_fields),
+              title: const Text('Tekst'),
+              onTap: () {
+                Navigator.pop(context);
+                _promptText(context, appState);
+              },
             ),
-          ),
-          const SizedBox(height: 16),
-          ListTile(
-            leading: const Icon(Icons.text_fields),
-            title: const Text('Tekst'),
-            onTap: () {
-              Navigator.pop(context);
-              _promptText(context, appState);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.link),
-            title: const Text('Link'),
-            onTap: () {
-              Navigator.pop(context);
-              _promptLink(context, appState);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.content_paste),
-            title: const Text('Plakken en versturen'),
-            onTap: () async {
-              Navigator.pop(context);
-              final item = await appState.pasteAndSend();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      item != null ? 'Klembord verstuurd' : 'Klembord is leeg',
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('Link'),
+              onTap: () {
+                Navigator.pop(context);
+                _promptLink(context, appState);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.content_paste),
+              title: const Text('Plakken en versturen'),
+              onTap: () async {
+                Navigator.pop(context);
+                final item = await appState.pasteAndSend();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        item != null
+                            ? 'Klembord verstuurd'
+                            : 'Klembord is leeg',
+                      ),
                     ),
-                  ),
-                );
-              }
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.insert_drive_file),
-            title: const Text('Bestand kiezen'),
-            onTap: () async {
-              Navigator.pop(context);
-              final result = await FilePicker.pickFiles(allowMultiple: true);
-              if (result != null && result.paths.isNotEmpty) {
-                for (final path in result.paths) {
+                  );
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.insert_drive_file),
+              title: const Text('Bestand kiezen'),
+              onTap: () async {
+                Navigator.pop(context);
+                final files = await FilePicker.pickFiles();
+                for (final file in files) {
+                  final path = file.path;
                   if (path != null) {
                     await appState.addFile(path);
                   }
                 }
-              }
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.note_add),
-            title: const Text('Nieuwe notitie'),
-            onTap: () {
-              Navigator.pop(context);
-              _promptNote(context, appState);
-            },
-          ),
-        ],
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.note_add),
+              title: const Text('Nieuwe notitie'),
+              onTap: () {
+                Navigator.pop(context);
+                _promptNote(context, appState);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import '../../core/app_state.dart';
 import '../../core/settings_store.dart';
 import '../widgets/dot_widgets.dart';
 import '../../platform/update_checker.dart';
+import '../../platform/login_item.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
@@ -76,10 +77,16 @@ class SettingsScreen extends StatelessWidget {
                 if (Platform.isMacOS) ...[
                   const Divider(),
                   _buildSectionHeader(context, 'macOS'),
-                  SwitchListTile(
-                    title: const Text('Starten bij inloggen'),
-                    value: settings.launchAtLogin,
-                    onChanged: (val) => settings.launchAtLogin = val,
+                  FutureBuilder<bool>(
+                    future: LoginItem.isSupported(),
+                    builder: (context, snapshot) {
+                      if (snapshot.data != true) return const SizedBox.shrink();
+                      return SwitchListTile(
+                        title: const Text('Starten bij inloggen'),
+                        value: settings.launchAtLogin,
+                        onChanged: (val) => settings.launchAtLogin = val,
+                      );
+                    },
                   ),
                   SwitchListTile(
                     title: const Text('Menubalkicoon'),

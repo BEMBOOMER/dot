@@ -1,17 +1,18 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:tray_manager/tray_manager.dart' as tray;
 import 'package:window_manager/window_manager.dart';
 
 import '../core/app_state.dart';
+import 'login_item.dart';
 
 class DesktopShell with WindowListener {
   DesktopShell._(this.state);
   final AppState state;
   static DesktopShell? _instance;
   tray.TrayIcon? _trayIcon;
+  bool _updatingLaunchAtLogin = false;
 
   static Future<void> init(AppState state) async {
     if (!Platform.isMacOS) return;
@@ -39,19 +40,22 @@ class DesktopShell with WindowListener {
       _trayIcon!.addListener(_onTrayEvent);
       await _updateMenu();
     }
-    launchAtStartup.setup(
-      appName: 'DOT',
-      appPath: Platform.resolvedExecutable,
-    );
     await _setLaunchAtLogin();
     state.settings.addListener(_setLaunchAtLogin);
   }
 
   Future<void> _setLaunchAtLogin() async {
-    if (state.settings.launchAtLogin) {
-      await launchAtStartup.enable();
-    } else {
-      await launchAtStartup.disable();
+    if (_updatingLaunchAtLogin) return;
+    _updatingLaunchAtLogin = true;
+    try {
+      final desired = state.settings.launchAtLogin;
+      final supported = await LoginItem.isSupported();
+      final success = supported && await LoginItem.setEnabled(desired);
+      if (!success && state.settings.launchAtLogin == desired) {
+        state.settings.launchAtLogin = !desired;
+      }
+    } finally {
+      _updatingLaunchAtLogin = false;
     }
   }
 

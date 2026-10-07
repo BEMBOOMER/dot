@@ -24,21 +24,19 @@ class DotSphere extends CustomPainter {
     );
     canvas.drawOval(shadowRect, shadowPaint);
 
-    // 2. Base sphere: radial gradient from baseColor to darker baseColor
-    final hslColor = HSLColor.fromColor(baseColor);
-    final darkerColor = hslColor
-        .withLightness((hslColor.lightness - 0.25).clamp(0.0, 1.0))
-        .toColor();
+    // Keep the accent recognizable; shading never exceeds 20% black.
+    final darkerColor = Color.lerp(baseColor, Colors.black, .20)!;
 
     final basePaint = Paint()
       ..shader = RadialGradient(
         center: const Alignment(-0.4, -0.5),
+        radius: 1.2,
         colors: [
           Color.lerp(baseColor, Colors.white, .35)!,
           baseColor,
           darkerColor,
         ],
-        stops: const [0, .5, 1.0],
+        stops: const [0, .24, 1.0],
       ).createShader(Rect.fromCircle(center: center, radius: radius));
     canvas.drawCircle(center, radius, basePaint);
 
@@ -51,12 +49,12 @@ class DotSphere extends CustomPainter {
       ..shader =
           RadialGradient(
             colors: [
-              Colors.white.withValues(alpha: 0.7),
+              Colors.white.withValues(alpha: 0.12),
               Colors.white.withValues(alpha: 0.0),
             ],
             stops: const [0.0, 1.0],
           ).createShader(
-            Rect.fromCircle(center: highlightCenter, radius: radius * 0.6),
+            Rect.fromCircle(center: highlightCenter, radius: radius * 0.75),
           );
     canvas.drawCircle(center, radius, highlightPaint);
 
@@ -69,7 +67,7 @@ class DotSphere extends CustomPainter {
       ..shader = RadialGradient(
         colors: [
           Colors.white.withValues(alpha: 0.0),
-          Colors.white.withValues(alpha: 0.4),
+          Colors.white.withValues(alpha: 0.08),
         ],
         stops: const [0.7, 1.0],
       ).createShader(Rect.fromCircle(center: rimCenter, radius: radius * 1.1));

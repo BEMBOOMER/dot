@@ -6,7 +6,7 @@ import FlutterMacOS
 import Foundation
 
 import desktop_drop
-import file_picker
+import file_picker_darwin
 import flutter_local_notifications
 import flutter_secure_storage_darwin
 import mobile_scanner

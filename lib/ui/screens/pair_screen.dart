@@ -248,74 +248,108 @@ class _PairScreenState extends State<PairScreen> {
     final seconds = (_timeLeft.inSeconds % 60).toString().padLeft(2, '0');
 
     final expired = _timeLeft <= Duration.zero;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 150,
-                child: DotsStage(
-                  status: ConnectionStatus.pairing,
-                  reducedMotion: context.watch<SettingsStore>().reducedMotion,
-                ),
-              ),
-              const Text(
-                'Scan deze QR-code met DOT op je telefoon',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: QrImageView(
-                  data: _offer!.qrPayload,
-                  version: QrVersions.auto,
-                  size: 240,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text('Handmatig verbinden'),
-              const SizedBox(height: 12),
-              const Text('Adres'),
-              SelectableText(
-                '${_offer!.host}:${_offer!.port}',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleLarge?.copyWith(fontSize: 24),
-              ),
-              const SizedBox(height: 8),
-              const Text('Code'),
-              SelectableText(
-                _offer!.manualCode,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: 28,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                expired
-                    ? 'Deze code is verlopen'
-                    : 'Nog $minutes:$seconds geldig',
-              ),
-              const SizedBox(height: 12),
-              if (expired)
-                DotButton(
-                  label: 'Nieuwe code',
-                  color: Theme.of(context).colorScheme.primary,
-                  onPressed: () => _initHostMode(context.read<SyncEngine>()),
-                )
-              else
-                const Text('Wacht op je telefoon…'),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        final dots = SizedBox(
+          height: 150,
+          child: DotsStage(
+            status: ConnectionStatus.pairing,
+            reducedMotion: context.watch<SettingsStore>().reducedMotion,
           ),
-        ),
-      ),
+        );
+        final heading = Text(
+          'Scan deze QR-code met DOT op je telefoon',
+          textAlign: TextAlign.center,
+          style: wide ? theme.textTheme.titleLarge : null,
+        );
+        final qr = Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: QrImageView(
+            data: _offer!.qrPayload,
+            version: QrVersions.auto,
+            size: 240,
+          ),
+        );
+        final manualRoute = <Widget>[
+          const Text('Handmatig verbinden'),
+          const SizedBox(height: 12),
+          const Text('Adres'),
+          SelectableText(
+            '${_offer!.host}:${_offer!.port}',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleLarge?.copyWith(fontSize: 24),
+          ),
+          const SizedBox(height: 8),
+          const Text('Code'),
+          SelectableText(
+            _offer!.manualCode,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: 28,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            expired ? 'Deze code is verlopen' : 'Nog $minutes:$seconds geldig',
+          ),
+          const SizedBox(height: 12),
+          if (expired || wide)
+            DotButton(
+              label: 'Nieuwe code',
+              variant: expired ? DotButtonStyle.primary : DotButtonStyle.ghost,
+              onPressed: () => _initHostMode(context.read<SyncEngine>()),
+            ),
+          if (!expired) const Text('Wacht op je telefoon…'),
+        ];
+        return SingleChildScrollView(
+          padding: wide
+              ? const EdgeInsets.all(32)
+              : const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: wide ? 880 : 520),
+              child: wide
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [dots, qr],
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              heading,
+                              const SizedBox(height: 32),
+                              ...manualRoute,
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        dots,
+                        heading,
+                        const SizedBox(height: 16),
+                        qr,
+                        const SizedBox(height: 20),
+                        ...manualRoute,
+                      ],
+                    ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -492,10 +526,10 @@ class _PairScreenState extends State<PairScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: ScreenContent(
-        child: SafeArea(
-          child: engine.isHost ? _buildHostView() : _buildClientView(),
-        ),
+      body: SafeArea(
+        child: engine.isHost
+            ? _buildHostView()
+            : ScreenContent(child: _buildClientView()),
       ),
     );
   }
