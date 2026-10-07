@@ -300,6 +300,29 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             backgroundColor: Colors.transparent,
             elevation: 0,
             actions: [
+              if (!engine.isHost)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Tooltip(
+                    message: statusLabel(
+                      engine.status,
+                      peerName: engine.peerName,
+                    ),
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(56, 56),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      icon: const Icon(Icons.touch_app_outlined, size: 20),
+                      label: const Text('Bediening'),
+                      onPressed:
+                          engine.status == ConnectionStatus.connected ||
+                              engine.status == ConnectionStatus.syncing
+                          ? () => Navigator.pushNamed(context, '/remote')
+                          : null,
+                    ),
+                  ),
+                ),
               if (isMac)
                 DotButton(
                   variant: DotButtonStyle.primary,

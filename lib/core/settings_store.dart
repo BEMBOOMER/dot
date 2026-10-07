@@ -16,6 +16,17 @@ class SettingsStore extends ChangeNotifier {
   bool get reducedMotion => prefs.getBool('reducedMotion') ?? false;
   set reducedMotion(bool v) => _set(() => prefs.setBool('reducedMotion', v));
 
+  double get trackpadSpeed {
+    final value = prefs.getDouble('trackpadSpeed') ?? 1.0;
+    return value.isFinite ? value.clamp(0.5, 2.5).toDouble() : 1.0;
+  }
+
+  set trackpadSpeed(double v) {
+    if (v.isFinite) {
+      _set(() => prefs.setDouble('trackpadSpeed', v.clamp(0.5, 2.5)));
+    }
+  }
+
   bool get notifications => prefs.getBool('notifications') ?? true;
   set notifications(bool v) => _set(() => prefs.setBool('notifications', v));
 

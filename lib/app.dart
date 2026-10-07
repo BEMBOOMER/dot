@@ -14,6 +14,7 @@ import 'ui/screens/workspace_screen.dart';
 import 'ui/screens/item_detail_screen.dart';
 import 'ui/screens/devices_screen.dart';
 import 'ui/screens/settings_screen.dart';
+import 'ui/screens/remote_screen.dart';
 import 'ui/theme/dot_theme.dart';
 
 class DotApp extends StatefulWidget {
@@ -79,6 +80,7 @@ class _DotAppState extends State<DotApp> with WidgetsBindingObserver {
             '/item': (_) => const ItemDetailScreen(),
             '/devices': (_) => const DevicesScreen(),
             '/settings': (_) => const SettingsScreen(),
+            '/remote': (_) => const RemoteScreen(),
           },
         ),
       ),
