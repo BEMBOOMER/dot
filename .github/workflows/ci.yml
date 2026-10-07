@@ -8,6 +8,14 @@ jobs:
   analyze-test-android:
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          if [ -n "${AGENT_TOOLSDIRECTORY:-}" ]; then
+            sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          fi
+          df -h
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
