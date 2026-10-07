@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app.dart';
@@ -11,8 +13,30 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   registerSyncEngineFactory(createLanEngine);
   final state = await bootstrap();
-  await ShareIntake.init(state);
-  await DotNotifier.init(state);
-  await DesktopShell.init(state);
   runApp(DotApp(state: state));
+  // Optional integrations start after the UI has rendered its first frame.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(
+      initializePlatformIntegrations({
+        'ShareIntake': () => ShareIntake.init(state),
+        'DotNotifier': () => DotNotifier.init(state),
+        'DesktopShell': () => DesktopShell.init(state),
+      }),
+    );
+  });
+}
+
+/// Isolate failures and delays so each optional integration can start independently.
+Future<void> initializePlatformIntegrations(
+  Map<String, Future<void> Function()> initializers,
+) async {
+  await Future.wait(
+    initializers.entries.map((entry) async {
+      try {
+        await entry.value();
+      } catch (e) {
+        debugPrint('DOT ${entry.key} init failed: $e');
+      }
+    }),
+  );
 }

@@ -84,7 +84,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/icons/dot_tray_template.svg
+    - assets/icons/dot_tray.png
+    - assets/icons/dot_tray@2x.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tray_manager/tray_manager.dart' as tray;
 import 'package:window_manager/window_manager.dart';
 
@@ -12,6 +14,8 @@ class DesktopShell with WindowListener {
   final AppState state;
   static DesktopShell? _instance;
   tray.TrayIcon? _trayIcon;
+  tray.Image? _trayImage;
+  bool _trayReady = false;
   bool _updatingLaunchAtLogin = false;
 
   static Future<void> init(AppState state) async {
@@ -25,20 +29,42 @@ class DesktopShell with WindowListener {
     await windowManager.setMinimumSize(const Size(420, 560));
     await windowManager.setTitle('DOT');
     windowManager.addListener(this);
+    // Closing must quit unless a fully configured tray can reopen the window.
+    await windowManager.setPreventClose(false);
     if (state.settings.menuBarIcon) {
-      _trayIcon = tray.TrayIcon.create();
-      if (_trayIcon == null) {
-        throw StateError('DOT-menubalkicoon kon niet worden aangemaakt.');
+      try {
+        final data = await rootBundle.load('assets/icons/dot_tray@2x.png');
+        final icon = tray.Image.fromBase64(
+          base64Encode(
+            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+          ),
+        );
+        if (icon == null) {
+          throw StateError('DOT-menubalkicoon kon niet worden geladen.');
+        }
+        _trayImage = icon;
+        _trayIcon = tray.TrayIcon.create();
+        if (_trayIcon == null) {
+          throw StateError('DOT-menubalkicoon kon niet worden aangemaakt.');
+        }
+        _trayIcon!.icon = icon;
+        // The 36px source is displayed at 18 logical points on Retina screens.
+        _trayIcon!.iconSize = const Size(18, 18);
+        _trayIcon!.isIconTemplate = true;
+        _trayIcon!.setTooltip('DOT');
+        _trayIcon!.addListener(_onTrayEvent);
+        await _updateMenu();
+        await windowManager.setPreventClose(true);
+        _trayReady = true;
+      } catch (e) {
+        debugPrint('DOT DesktopShell init failed: $e');
+        _trayReady = false;
+        _trayIcon?.dispose();
+        _trayIcon = null;
+        _trayImage?.dispose();
+        _trayImage = null;
+        await windowManager.setPreventClose(false);
       }
-      final icon = tray.Image.fromFile('assets/icons/dot_tray_template.svg');
-      if (icon == null) {
-        throw StateError('DOT-menubalkicoon kon niet worden geladen.');
-      }
-      _trayIcon!.icon = icon;
-      _trayIcon!.isIconTemplate = true;
-      _trayIcon!.setTooltip('DOT');
-      _trayIcon!.addListener(_onTrayEvent);
-      await _updateMenu();
     }
     await _setLaunchAtLogin();
     state.settings.addListener(_setLaunchAtLogin);
@@ -54,6 +80,8 @@ class DesktopShell with WindowListener {
       if (!success && state.settings.launchAtLogin == desired) {
         state.settings.launchAtLogin = !desired;
       }
+    } catch (e) {
+      debugPrint('DOT LoginItem init failed: $e');
     } finally {
       _updatingLaunchAtLogin = false;
     }
@@ -119,7 +147,7 @@ class DesktopShell with WindowListener {
 
   @override
   Future<void> onWindowClose() async {
-    if (state.settings.menuBarIcon) {
+    if (_trayReady && state.settings.menuBarIcon) {
       await windowManager.hide();
     } else {
       await windowManager.destroy();
