@@ -8,7 +8,7 @@ netwerk. DOT bewaart alles lokaal en vraagt geen account.
 
 ### Android
 
-1. Download de APK uit [GitHub Releases](https://github.com/BEMBOOMER/DOT/releases).
+1. Download de APK uit [GitHub Releases](https://github.com/BEMBOOMER/dot/releases/latest).
 2. Open de APK op je telefoon.
 3. Sta, als Android daarom vraagt, **Installeren uit onbekende bron** toe voor
    je browser of bestandsbeheerder.
@@ -81,3 +81,7 @@ De releaseworkflow bouwt de APK en DMG, maakt checksums en gebruikt de
 keystore wordt een niet-ondertekende APK met debug-signing fallback gemaakt.
 Notarization van de DMG is optioneel en gebruikt de Apple-secrets uit de
 workflow.
+
+## Licentie
+
+MIT, zie [LICENSE](LICENSE). Gemaakt door Roelof Junior Haar ([@bemooks](https://instagram.com/bemooks)).
