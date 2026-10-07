@@ -117,7 +117,7 @@ class _PairScreenState extends State<PairScreen> {
     if (!mounted || _completed) return;
     _completed = true;
     context.read<SettingsStore>().onboarded = true;
-    Navigator.pushReplacementNamed(context, '/workspace');
+    Navigator.pushNamedAndRemoveUntil(context, '/workspace', (_) => false);
   }
 
   void _showPairConfirmDialog(PairingRequest request) {
@@ -391,6 +391,7 @@ class _PairScreenState extends State<PairScreen> {
                                   _clientError = null;
                                 }),
                           label: 'Annuleren',
+                          variant: DotButtonStyle.secondary,
                         ),
                         if (_isLoading) ...[
                           const SizedBox(height: 16),

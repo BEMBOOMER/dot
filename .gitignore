@@ -13,3 +13,4 @@ macos/Pods/
 .agents/*.txt
 test/_review_shots_test.dart
 test/_shots/
+test/_e2e_host_test.dart

@@ -267,6 +267,66 @@ void main() {
     client.dispose();
   });
 
+  testWidgets('failed workspace shows recovery and reconnects', (tester) async {
+    await prepare(tester);
+    final engine = _RecoveryEngine(
+      repository: state.repository,
+      devices: state.devices,
+    );
+    await tester.pumpWidget(
+      harness(
+        ChangeNotifierProvider<SyncEngine>.value(
+          value: engine,
+          child: const WorkspaceScreen(),
+        ),
+      ),
+    );
+    await settleDatabase(tester);
+    expect(find.text('Opnieuw verbinden'), findsOneWidget);
+    expect(find.text('Test connection error'), findsOneWidget);
+    await tester.tap(find.text('Opnieuw verbinden'));
+    await settleDatabase(tester);
+    expect(engine.reconnectCalls, 1);
+    expect(find.text('Opnieuw verbinden'), findsNothing);
+    expect(find.text('Test connection error'), findsNothing);
+    engine.setStatus(ConnectionStatus.offline);
+    await settleDatabase(tester);
+    expect(find.text('Opnieuw verbinden'), findsOneWidget);
+    engine.setStatus(ConnectionStatus.unpaired);
+    await settleDatabase(tester);
+    expect(find.text('Apparaat koppelen'), findsOneWidget);
+    expect(find.text('Opnieuw verbinden'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    engine.dispose();
+  });
+
+  testWidgets('demo pairing clears routes and has no back button', (
+    tester,
+  ) async {
+    await prepare(tester);
+    await tester.pumpWidget(harness(const SizedBox()));
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.push(MaterialPageRoute<void>(builder: (_) => const PairScreen()));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await state.engine.confirmPairing(
+        await state.engine.previewPairing('demo'),
+      );
+    });
+    await settleDatabase(tester);
+    expect(find.byType(WorkspaceScreen), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+    expect(
+      tester.widget<AppBar>(find.byType(AppBar)).automaticallyImplyLeading,
+      isFalse,
+    );
+    expect(
+      Navigator.of(tester.element(find.byType(WorkspaceScreen))).canPop(),
+      isFalse,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('settings restrict desktop controls to macOS', (tester) async {
     await prepare(tester);
     const loginItemChannel = MethodChannel('dot/login_item');
@@ -473,6 +533,11 @@ void main() {
     await settleDatabase(tester);
     expect(state.isDemoMode, isTrue);
     expect(find.byType(WorkspaceScreen), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+    expect(
+      Navigator.of(tester.element(find.byType(WorkspaceScreen))).canPop(),
+      isFalse,
+    );
     await tester.tap(find.byTooltip('Instellingen'));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsScreen), findsOneWidget);
@@ -507,4 +572,26 @@ final class _TestPlatformFile extends PlatformFile {
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnsupportedError('Only file paths are used by this test');
+}
+
+class _RecoveryEngine extends FakeSyncEngine {
+  _RecoveryEngine({required super.repository, required super.devices})
+    : super(localDeviceId: 'local', localName: 'Test');
+  ConnectionStatus currentStatus = ConnectionStatus.failed;
+  int reconnectCalls = 0;
+  @override
+  ConnectionStatus get status => currentStatus;
+  @override
+  String? get lastError =>
+      currentStatus == ConnectionStatus.failed ? 'Test connection error' : null;
+  void setStatus(ConnectionStatus value) {
+    currentStatus = value;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> reconnect() async {
+    reconnectCalls++;
+    setStatus(ConnectionStatus.connected);
+  }
 }

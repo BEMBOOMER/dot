@@ -55,7 +55,11 @@ class WelcomeScreen extends StatelessWidget {
                       onPressed: () async {
                         await context.read<AppState>().enterDemoMode();
                         if (context.mounted) {
-                          Navigator.pushReplacementNamed(context, '/workspace');
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/workspace',
+                            (_) => false,
+                          );
                         }
                       },
                     ),

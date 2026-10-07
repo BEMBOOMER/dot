@@ -295,6 +295,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               ? DotColors.bgDark
               : DotColors.bg,
           appBar: AppBar(
+            automaticallyImplyLeading: false,
             title: const Text('DOT', style: TextStyle(fontFamily: 'Inter')),
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -343,6 +344,37 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     peerName: engine.peerName,
                   ),
                 ),
+                if (engine.status == ConnectionStatus.failed ||
+                    engine.status == ConnectionStatus.offline ||
+                    engine.status == ConnectionStatus.unpaired)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Column(
+                      children: [
+                        DotButton(
+                          variant: DotButtonStyle.secondary,
+                          label: engine.status == ConnectionStatus.unpaired
+                              ? 'Apparaat koppelen'
+                              : 'Opnieuw verbinden',
+                          onPressed: () {
+                            if (engine.status == ConnectionStatus.unpaired) {
+                              Navigator.pushNamed(context, '/pair');
+                            } else {
+                              engine.reconnect();
+                            }
+                          },
+                        ),
+                        if (engine.lastError != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            engine.lastError!,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Expanded(
                   child: Consumer<ItemRepository>(
