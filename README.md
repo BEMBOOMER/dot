@@ -19,6 +19,24 @@ worden via je lokale netwerk gedeeld.
 
 ## Installeren op je Mac
 
+### Via de Terminal (snelst)
+
+Plak dit in **Terminal**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BEMBOOMER/dot/main/scripts/install-mac.sh | bash
+```
+
+Het script ([`scripts/install-mac.sh`](scripts/install-mac.sh)) haalt de
+laatste release op, controleert de SHA-256-controlesom, zet DOT in
+**Programma's**, haalt de downloadblokkade van macOS weg en start de app. Bij een
+eerste installatie opent het ook **Toegankelijkheid**, zodat je DOT meteen kunt
+aanzetten voor bediening op afstand. Die ene schakelaar moet je zelf omzetten;
+macOS staat niet toe dat een script dat doet. Hetzelfde commando werkt ook om
+DOT bij te werken.
+
+### Handmatig
+
 1. Open `DOT-<versie>.dmg`.
 2. Sleep DOT naar **Programma's**.
 3. Start DOT vanuit Programma's.
@@ -37,6 +55,12 @@ inloggen** werkt vanaf macOS 13.
 2. Sta, als Android daarom vraagt, **Installeren uit deze bron** toe voor je
    browser of bestandsbeheerder.
 3. Open de APK en rond de installatie af.
+
+Heb je `adb` en staat USB-foutopsporing aan, dan kan het ook vanaf je Mac:
+
+```bash
+adb install -r DOT-<versie>.apk
+```
 
 DOT werkt op Android 6 en nieuwer.
 
