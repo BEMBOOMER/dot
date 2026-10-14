@@ -37,5 +37,12 @@ else
   dmg="build/DOT.dmg"
 fi
 rm -f "$dmg"
-hdiutil create -volname DOT -srcfolder "$staging_dir" -ov -format UDZO "$dmg"
+cp "$app/Contents/Resources/AppIcon.icns" "$staging_dir/.VolumeIcon.icns"
+rw_dmg="$staging_dir.rw.dmg"
+hdiutil create -volname DOT -srcfolder "$staging_dir" -ov -format UDRW "$rw_dmg"
+mount_point="$(hdiutil attach "$rw_dmg" -nobrowse -noverify | awk -F'\t' '/\/Volumes\//{print $NF}' | tail -1)"
+SetFile -a C "$mount_point"
+hdiutil detach "$mount_point"
+hdiutil convert "$rw_dmg" -ov -format UDZO -o "$dmg"
+rm -f "$rw_dmg"
 shasum -a 256 "$dmg" > "$dmg.sha256"
