@@ -157,9 +157,12 @@ debug-signing fallback gemaakt. Notarization van de DMG is optioneel en
 gebruikt de Apple-secrets uit de workflow.
 
 Na de CI-release vervangt de maker de Mac-download lokaal met de stabiel
-ondertekende versie:
+ondertekende versie. Eenmalig per Mac maak je de sleutelhanger met het
+certificaat aan; het wachtwoord komt in `~/.config/dot/` en wordt daarna
+automatisch gebruikt:
 
 ```sh
+scripts/setup_mac_signing.sh
 scripts/publish_signed_mac.sh <tag>
 ```
 

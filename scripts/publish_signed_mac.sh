@@ -32,11 +32,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -n "${DOT_KEYCHAIN:-}" && -n "${DOT_KEYCHAIN_PASSWORD_FILE:-}" ]]; then
-  security unlock-keychain \
-    -p "$(cat "$DOT_KEYCHAIN_PASSWORD_FILE")" \
-    "$DOT_KEYCHAIN"
+# Defaults match scripts/setup_mac_signing.sh.
+keychain="${DOT_KEYCHAIN:-$HOME/Library/Keychains/dot-signing.keychain-db}"
+password_file="${DOT_KEYCHAIN_PASSWORD_FILE:-$HOME/.config/dot/signing-keychain-password}"
+if [[ ! -e "$keychain" || ! -r "$password_file" ]]; then
+  echo "Signing keychain not set up. Run scripts/setup_mac_signing.sh first." >&2
+  exit 1
 fi
+security unlock-keychain -p "$(cat "$password_file")" "$keychain"
 
 version="${tag#v}"
 if [[ "$version" == "$tag" || -z "$version" ]]; then
@@ -44,9 +47,12 @@ if [[ "$version" == "$tag" || -z "$version" ]]; then
   exit 1
 fi
 
+# Build the tagged code with the current build script, so signing fixes also
+# apply to releases tagged before them.
 (
   cd "$worktree_root"
-  SIGN_IDENTITY="DOT Code Signing" VERSION="$version" ./scripts/build_dmg.sh
+  SIGN_IDENTITY="DOT Code Signing" VERSION="$version" \
+    bash "$repo_root/scripts/build_dmg.sh"
 )
 
 dmg_path="$worktree_root/build/DOT-${version}.dmg"

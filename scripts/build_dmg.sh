@@ -8,8 +8,10 @@ if [[ -n "${SIGN_IDENTITY:-}" ]]; then
     --entitlements macos/Runner/Release.entitlements \
     --sign "$SIGN_IDENTITY" "$app"
   designated_requirement="$(codesign -dr - "$app" 2>&1)"
-  if ! grep -Fq 'certificate root' <<<"$designated_requirement"; then
-    echo "Signed macOS app is missing a certificate root designated requirement." >&2
+  # An untrusted self-signed certificate pins the leaf, a trusted one the root.
+  # Both stay stable across builds as long as the certificate is the same.
+  if ! grep -Eq 'certificate (root|leaf)' <<<"$designated_requirement"; then
+    echo "Signed macOS app is missing a certificate designated requirement." >&2
     exit 1
   fi
 else
