@@ -118,6 +118,8 @@ class LanSyncEngine extends SyncEngine {
   Timer? _trustTimer;
   bool _refreshingTrust = false;
   final _remoteStatus = ValueNotifier(const RemoteInputStatus());
+  final _remoteTextFocus = ValueNotifier(const TextFocus());
+  bool _watchingFocus = false;
   int _backoff = 1;
   int _generation = 0;
 
@@ -159,7 +161,10 @@ class LanSyncEngine extends SyncEngine {
     );
     repository.addListener(_repositoryChanged);
     settings.addListener(_settingsChanged);
-    if (isHost) inputSink?.trusted.addListener(_inputTrustChanged);
+    if (isHost) {
+      inputSink?.trusted.addListener(_inputTrustChanged);
+      inputSink?.textFocus.addListener(_textFocusChanged);
+    }
     _updateHostInputStatus();
   }
 
@@ -179,6 +184,8 @@ class LanSyncEngine extends SyncEngine {
   Stream<SyncEvent> get events => _events.stream;
   @override
   ValueListenable<RemoteInputStatus> get remoteStatus => _remoteStatus;
+  @override
+  ValueListenable<TextFocus> get remoteTextFocus => _remoteTextFocus;
 
   @override
   void sendInput(RemoteInput input) {
@@ -207,12 +214,55 @@ class LanSyncEngine extends SyncEngine {
       trusted: inputSink?.trusted.value ?? false,
       available: inputSink != null,
     );
-    if (next == _remoteStatus.value) return;
-    _remoteStatus.value = next;
-    final session = _active;
-    if (session != null && session.authenticated && session.hello) {
-      _sendInputStatus(session);
+    if (next != _remoteStatus.value) {
+      _remoteStatus.value = next;
+      final session = _active;
+      if (session != null && session.authenticated && session.hello) {
+        _sendInputStatus(session);
+      }
     }
+    _updateTextFocusWatch();
+  }
+
+  bool get _sessionReady {
+    final session = _active;
+    return session != null &&
+        !session.closed &&
+        session.authenticated &&
+        session.hello &&
+        session.peer != null &&
+        devices.get(session.peer!.id) != null;
+  }
+
+  /// Host: watch native text focus only while a trusted phone can type.
+  void _updateTextFocusWatch() {
+    if (!isHost || inputSink == null) return;
+    final want =
+        !_disposed &&
+        _running &&
+        settings.remoteControl &&
+        inputSink!.trusted.value &&
+        _sessionReady;
+    if (want == _watchingFocus) return;
+    _watchingFocus = want;
+    if (want) {
+      _sendTextFocus(inputSink!.textFocus.value);
+    } else if (_sessionReady) {
+      _sendTextFocus(const TextFocus());
+    }
+    unawaited(
+      inputSink!.watchTextFocus(want).catchError((Object _) {
+        // Focus hints are optional; typing still works without them.
+      }),
+    );
+  }
+
+  void _textFocusChanged() {
+    if (_watchingFocus) _sendTextFocus(inputSink!.textFocus.value);
+  }
+
+  void _sendTextFocus(TextFocus focus) {
+    if (_sessionReady) _active!.send('text_focus', focus.toWire());
   }
 
   void _sendInputStatus(_Session session) {
@@ -422,7 +472,11 @@ class LanSyncEngine extends SyncEngine {
     _reconnectTimer?.cancel();
     _offerTimer?.cancel();
     _trustTimer?.cancel();
-    if (!isHost) _remoteStatus.value = const RemoteInputStatus();
+    if (!isHost) {
+      _remoteStatus.value = const RemoteInputStatus();
+      _remoteTextFocus.value = const TextFocus();
+    }
+    _updateTextFocusWatch();
     await _resetInput();
     tokens.cancel();
     _requests.clear();
@@ -930,6 +984,7 @@ class LanSyncEngine extends SyncEngine {
       }
       session.hello = true;
       _sendInputStatus(session);
+      _updateTextFocusWatch();
       if (!session.ready.isCompleted) session.ready.complete(session.peer!);
       await syncNow();
       return;
@@ -957,6 +1012,11 @@ class LanSyncEngine extends SyncEngine {
         if (!isHost) {
           final state = RemoteInputStatus.fromWire(message);
           if (state != null) _remoteStatus.value = state;
+        }
+      case 'text_focus':
+        if (!isHost) {
+          final focus = TextFocus.fromWire(message);
+          if (focus != null) _remoteTextFocus.value = focus;
         }
       case 'item':
         final item = DotItem.fromWire(
@@ -1260,7 +1320,9 @@ class LanSyncEngine extends SyncEngine {
       _active = null;
       if (!isHost && !_disposed) {
         _remoteStatus.value = const RemoteInputStatus();
+        _remoteTextFocus.value = const TextFocus();
       }
+      _updateTextFocusWatch();
       await _resetInput();
       _inFlight.clear();
       await _files.disconnected();
@@ -1284,8 +1346,12 @@ class LanSyncEngine extends SyncEngine {
     if (_disposed) return;
     repository.removeListener(_repositoryChanged);
     settings.removeListener(_settingsChanged);
-    if (isHost) inputSink?.trusted.removeListener(_inputTrustChanged);
+    if (isHost) {
+      inputSink?.trusted.removeListener(_inputTrustChanged);
+      inputSink?.textFocus.removeListener(_textFocusChanged);
+    }
     _disposed = true;
+    _updateTextFocusWatch();
     _running = false;
     ++_generation;
     _reconnectTimer?.cancel();
@@ -1308,6 +1374,7 @@ class LanSyncEngine extends SyncEngine {
     _events.close();
     _files.dispose();
     _remoteStatus.dispose();
+    _remoteTextFocus.dispose();
     super.dispose();
   }
 }

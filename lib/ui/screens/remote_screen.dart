@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +10,7 @@ import '../../core/models.dart';
 import '../../core/remote_input.dart';
 import '../../core/settings_store.dart';
 import '../../core/sync_engine.dart';
+import '../../core/typing_diff.dart';
 import '../../platform/android_remote.dart';
 import '../theme/dot_theme.dart';
 import '../widgets/dot_widgets.dart';
@@ -16,6 +18,12 @@ import '../widgets/remote_trackpad.dart';
 
 class RemoteScreen extends StatefulWidget {
   const RemoteScreen({super.key});
+
+  /// Route argument that opens the screen on the keyboard tab.
+  static const keyboardTab = 3;
+
+  /// Open instances; the app only routes here when none is open.
+  static int openCount = 0;
 
   @override
   State<RemoteScreen> createState() => _RemoteScreenState();
@@ -29,10 +37,19 @@ class _RemoteScreenState extends State<RemoteScreen>
   bool _foreground = true;
   bool _routeCurrent = true;
   bool _nativeActive = false;
+  bool _readArguments = false;
+  final _keyboardFocus = FocusNode(debugLabel: 'remote-keyboard');
+  ValueListenable<TextFocus>? _textFocus;
+  int _lastField = 0;
+
+  /// The phone keyboard opened because the Mac asked, so close it again when
+  /// the Mac's text field loses focus.
+  bool _autoOpened = false;
 
   @override
   void initState() {
     super.initState();
+    RemoteScreen.openCount++;
     WidgetsBinding.instance.addObserver(this);
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
@@ -44,7 +61,60 @@ class _RemoteScreenState extends State<RemoteScreen>
     super.didChangeDependencies();
     _engine = context.read<SyncEngine>();
     _routeCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    _listenTextFocus();
+    if (!_readArguments) {
+      _readArguments = true;
+      if (ModalRoute.of(context)?.settings.arguments ==
+          RemoteScreen.keyboardTab) {
+        _tab = RemoteScreen.keyboardTab;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _textFocus?.value.active == true) _openKeyboard();
+        });
+      }
+    }
     _updateNative();
+  }
+
+  void _listenTextFocus() {
+    final next = _engine.remoteTextFocus;
+    if (identical(next, _textFocus)) return;
+    _textFocus?.removeListener(_textFocusChanged);
+    _textFocus = next..addListener(_textFocusChanged);
+    _lastField = next.value.field;
+  }
+
+  void _textFocusChanged() {
+    final focus = _textFocus!.value;
+    final newField = focus.field != _lastField;
+    _lastField = focus.field;
+    if (!mounted) return;
+    if (!focus.active) {
+      if (_autoOpened) {
+        _autoOpened = false;
+        _keyboardFocus.unfocus();
+      }
+      setState(() {});
+      return;
+    }
+    final settings = context.read<SettingsStore>();
+    if (newField && settings.phoneKeyboard && _foreground && _routeCurrent) {
+      _select(RemoteScreen.keyboardTab);
+      _openKeyboard();
+    } else {
+      setState(() {});
+    }
+  }
+
+  void _openKeyboard({bool auto = true}) {
+    _autoOpened = auto && (_autoOpened || !_keyboardFocus.hasFocus);
+    // After the frame that shows the keyboard tab and enables its field.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _tab != RemoteScreen.keyboardTab) return;
+      _keyboardFocus.requestFocus();
+      // The keyboard may be hidden while the field kept focus.
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    });
+    setState(() {});
   }
 
   void _updateNative() {
@@ -90,6 +160,10 @@ class _RemoteScreenState extends State<RemoteScreen>
 
   void _select(int tab) {
     if (_tab == tab) return;
+    if (_tab == RemoteScreen.keyboardTab) {
+      _autoOpened = false;
+      _keyboardFocus.unfocus();
+    }
     setState(() => _tab = tab);
     _updateNative();
   }
@@ -145,7 +219,10 @@ class _RemoteScreenState extends State<RemoteScreen>
 
   @override
   void dispose() {
+    RemoteScreen.openCount--;
     WidgetsBinding.instance.removeObserver(this);
+    _textFocus?.removeListener(_textFocusChanged);
+    _keyboardFocus.dispose();
     _android.dispose();
     super.dispose();
   }
@@ -153,6 +230,7 @@ class _RemoteScreenState extends State<RemoteScreen>
   @override
   Widget build(BuildContext context) {
     _engine = context.watch<SyncEngine>();
+    _listenTextFocus();
     final settings = context.watch<SettingsStore>();
     final demo = context.watch<AppState?>()?.isDemoMode ?? false;
     return ValueListenableBuilder<RemoteInputStatus>(
@@ -235,6 +313,7 @@ class _RemoteScreenState extends State<RemoteScreen>
                           'Trackpad',
                           'Presentatie',
                           'Media',
+                          'Typen',
                         ].indexed)
                           Expanded(
                             child: Semantics(
@@ -325,6 +404,16 @@ class _RemoteScreenState extends State<RemoteScreen>
                             onMedia: (media) =>
                                 _press(RemoteInput.media(media)),
                           ),
+                        ),
+                        _Keyboard(
+                          messages: messages,
+                          enabled: enabled,
+                          visible: _tab == RemoteScreen.keyboardTab,
+                          focusNode: _keyboardFocus,
+                          macFieldActive: _textFocus?.value.active ?? false,
+                          send: _send,
+                          onEdit: (key) => _press(RemoteInput.edit(key)),
+                          onOpen: () => _openKeyboard(auto: false),
                         ),
                       ],
                     ),
@@ -688,4 +777,249 @@ class _Media extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Types on the Mac. The field mirrors what is typed for feedback; each edit
+/// is turned into keystrokes by [TypingDiff].
+class _Keyboard extends StatefulWidget {
+  final List<String> messages;
+  final bool enabled;
+  final bool visible;
+  final bool macFieldActive;
+  final FocusNode focusNode;
+  final void Function(RemoteInput input) send;
+  final void Function(EditKey key) onEdit;
+  final VoidCallback onOpen;
+
+  const _Keyboard({
+    required this.messages,
+    required this.enabled,
+    required this.visible,
+    required this.macFieldActive,
+    required this.focusNode,
+    required this.send,
+    required this.onEdit,
+    required this.onOpen,
+  });
+
+  @override
+  State<_Keyboard> createState() => _KeyboardState();
+}
+
+class _KeyboardState extends State<_Keyboard> {
+  /// Zero-width space before the cursor, so a backspace in an otherwise empty
+  /// field is still visible as an edit and reaches the Mac.
+  static const _sentinel = '​';
+
+  /// Start over once the mirror gets long, between words.
+  static const _resetLength = 160;
+
+  final _controller = TextEditingController(text: _sentinel);
+  String _sent = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_pinCursor);
+    widget.focusNode.addListener(_focusChanged);
+  }
+
+  @override
+  void didUpdateWidget(_Keyboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      oldWidget.focusNode.removeListener(_focusChanged);
+      widget.focusNode.addListener(_focusChanged);
+    }
+  }
+
+  void _focusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Every edit must happen at the end, matching the caret on the Mac.
+  void _pinCursor() {
+    final value = _controller.value;
+    final end = value.text.length;
+    if (value.composing.isValid) return;
+    if (value.selection.isCollapsed && value.selection.baseOffset == end) {
+      return;
+    }
+    _controller.value = value.copyWith(
+      selection: TextSelection.collapsed(offset: end),
+    );
+  }
+
+  void _changed(String text) {
+    var backspaces = 0;
+    var body = text;
+    if (body.startsWith(_sentinel)) {
+      body = body.substring(_sentinel.length);
+    } else {
+      // The sentinel itself was deleted: one backspace on an empty mirror.
+      backspaces = 1;
+      body = body.replaceAll(_sentinel, '');
+    }
+    final diff = TypingDiff.between(_sent, body);
+    _sent = body;
+    if (!widget.enabled) {
+      _reset();
+      return;
+    }
+    for (var i = 0; i < backspaces; i++) {
+      widget.send(const RemoteInput.edit(EditKey.backspace));
+    }
+    for (final input in diff.toInputs()) {
+      widget.send(input);
+    }
+    final composing = _controller.value.composing.isValid;
+    final endedLine = body.endsWith('\n');
+    final mustRestore = backspaces > 0;
+    if (mustRestore ||
+        endedLine ||
+        (!composing && body.length > _resetLength && body.endsWith(' '))) {
+      _reset();
+    }
+  }
+
+  void _reset() {
+    _sent = '';
+    _controller.value = const TextEditingValue(
+      text: _sentinel,
+      selection: TextSelection.collapsed(offset: _sentinel.length),
+    );
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode.removeListener(_focusChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final typing = widget.focusNode.hasFocus;
+    final status = !widget.enabled
+        ? null
+        : widget.macFieldActive
+        ? 'Tekstveld actief op je Mac'
+        : 'Klik op je Mac in een tekstveld';
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final message in widget.messages) ...[
+                Text(message, style: theme.textTheme.bodySmall),
+                const SizedBox(height: 12),
+              ],
+              if (status != null) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: StatusPill(
+                    label: status,
+                    color: widget.macFieldActive
+                        ? DotColors.success(context)
+                        : DotColors.secondary(context),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              DotCard(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: TextField(
+                    key: const ValueKey('remote-keyboard-field'),
+                    controller: _controller,
+                    focusNode: widget.focusNode,
+                    enabled: widget.enabled && widget.visible,
+                    onChanged: _changed,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    textCapitalization: TextCapitalization.sentences,
+                    enableInteractiveSelection: false,
+                    minLines: 4,
+                    maxLines: 6,
+                    style: theme.textTheme.bodyLarge,
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      filled: false,
+                      hintText: widget.enabled
+                          ? 'Wat je hier typt, verschijnt op je Mac.'
+                          : 'Typen is niet actief',
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  for (final (index, (label, icon, key)) in [
+                    ('Wissen', Icons.backspace_outlined, EditKey.backspace),
+                    ('Tab', Icons.keyboard_tab_rounded, EditKey.tab),
+                    ('Enter', Icons.keyboard_return_rounded, EditKey.enter),
+                  ].indexed) ...[
+                    if (index != 0) const SizedBox(width: 12),
+                    Expanded(
+                      child: _ControlButton(
+                        label: label,
+                        icon: icon,
+                        enabled: widget.enabled,
+                        onPressed: () => widget.onEdit(key),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (final (index, (label, icon, key)) in [
+                    ('Links', Icons.arrow_back_rounded, EditKey.left),
+                    ('Omhoog', Icons.arrow_upward_rounded, EditKey.up),
+                    ('Omlaag', Icons.arrow_downward_rounded, EditKey.down),
+                    ('Rechts', Icons.arrow_forward_rounded, EditKey.right),
+                  ].indexed) ...[
+                    if (index != 0) const SizedBox(width: 12),
+                    Expanded(
+                      child: Tooltip(
+                        message: label,
+                        child: FilledButton(
+                          onPressed: widget.enabled
+                              ? () => widget.onEdit(key)
+                              : null,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(56, 56),
+                            padding: EdgeInsets.zero,
+                            shape: const StadiumBorder(),
+                            backgroundColor: DotColors.muted(context),
+                            foregroundColor: theme.colorScheme.onSurface,
+                          ),
+                          child: Icon(icon, semanticLabel: label),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (!typing) ...[
+                const SizedBox(height: 16),
+                _ControlButton(
+                  label: 'Toetsenbord openen',
+                  icon: Icons.keyboard_rounded,
+                  primary: true,
+                  enabled: widget.enabled,
+                  onPressed: widget.onOpen,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

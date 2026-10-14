@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0]
+
+- Nieuw: typ op je Mac met het toetsenbord van je telefoon. Klik je op de Mac in een tekstveld terwijl DOT op je telefoon open staat, dan opent het toetsenbord vanzelf.
+- Nieuw: tab **Typen** in Bediening, met knoppen voor wissen, Tab, Enter en de pijltjestoetsen. Autocorrectie, swipen en emoji werken gewoon.
+- Automatisch openen kun je op Android uitzetten in Instellingen.
+- Werk beide apps bij: een oudere Mac-app negeert getypte tekst.
+
 ## [0.2.3]
 
 - Mac: de app is nu vast ondertekend. Toegang voor Toegankelijkheid blijft na updates behouden (na deze update nog een laatste keer opnieuw toestaan).

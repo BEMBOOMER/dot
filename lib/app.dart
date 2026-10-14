@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_state.dart';
 import 'core/device_store.dart';
 import 'core/item_repository.dart';
+import 'core/models.dart';
+import 'core/remote_input.dart';
 import 'core/settings_store.dart';
 import 'core/sync_engine.dart';
 import 'ui/screens/welcome_screen.dart';
@@ -25,6 +28,7 @@ class DotApp extends StatefulWidget {
 }
 
 class _DotAppState extends State<DotApp> with WidgetsBindingObserver {
+  final _navigator = GlobalKey<NavigatorState>();
   @override
   void initState() {
     super.initState();
@@ -67,6 +71,11 @@ class _DotAppState extends State<DotApp> with WidgetsBindingObserver {
       ],
       child: Consumer<SettingsStore>(
         builder: (context, settings, _) => MaterialApp(
+          navigatorKey: _navigator,
+          builder: (context, child) => _KeyboardRouter(
+            navigator: _navigator,
+            child: child ?? const SizedBox.shrink(),
+          ),
           title: 'DOT',
           debugShowCheckedModeBanner: false,
           theme: lightTheme,
@@ -86,4 +95,62 @@ class _DotAppState extends State<DotApp> with WidgetsBindingObserver {
       ),
     ),
   );
+}
+
+/// Android: opens the keyboard tab when a text field on the Mac gets focus,
+/// so the phone keyboard appears without first opening Bediening.
+class _KeyboardRouter extends StatefulWidget {
+  final GlobalKey<NavigatorState> navigator;
+  final Widget child;
+  const _KeyboardRouter({required this.navigator, required this.child});
+
+  @override
+  State<_KeyboardRouter> createState() => _KeyboardRouterState();
+}
+
+class _KeyboardRouterState extends State<_KeyboardRouter> {
+  ValueListenable<TextFocus>? _focus;
+  int _lastField = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = context.watch<SyncEngine>().remoteTextFocus;
+    if (identical(next, _focus)) return;
+    _focus?.removeListener(_changed);
+    _focus = next..addListener(_changed);
+    _lastField = next.value.field;
+  }
+
+  void _changed() {
+    final focus = _focus!.value;
+    final newField = focus.field != _lastField;
+    _lastField = focus.field;
+    if (!mounted || !focus.active || !newField) return;
+    final engine = context.read<SyncEngine>();
+    final settings = context.read<SettingsStore>();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (defaultTargetPlatform != TargetPlatform.android ||
+        engine.isHost ||
+        !settings.phoneKeyboard ||
+        (lifecycle != null && lifecycle != AppLifecycleState.resumed) ||
+        RemoteScreen.openCount > 0 ||
+        (engine.status != ConnectionStatus.connected &&
+            engine.status != ConnectionStatus.syncing)) {
+      return;
+    }
+    widget.navigator.currentState?.pushNamed(
+      '/remote',
+      arguments: RemoteScreen.keyboardTab,
+    );
+  }
+
+  @override
+  void dispose() {
+    _focus?.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

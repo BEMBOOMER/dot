@@ -12,6 +12,9 @@ abstract class SyncEngine extends ChangeNotifier {
   bool get isHost;
   ValueListenable<Map<String, double>> get transfers;
   ValueListenable<RemoteInputStatus> get remoteStatus;
+
+  /// Client: whether a text field on the connected Mac has keyboard focus.
+  ValueListenable<TextFocus> get remoteTextFocus;
   void sendInput(RemoteInput input);
   Stream<SyncEvent> get events;
   Future<void> start();

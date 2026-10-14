@@ -56,6 +56,9 @@ class MainFlutterWindow: NSWindow {
     inputChannel.setMethodCallHandler { call, result in
       input.handle(call, result: result)
     }
+    input.onTextFocus = { active, field in
+      inputChannel.invokeMethod("textFocus", arguments: ["active": active, "field": field])
+    }
 
     let migrationChannel = FlutterMethodChannel(
       name: "dot/migration",
@@ -78,6 +81,16 @@ class MainFlutterWindow: NSWindow {
 private final class DotInputController {
   private var dragDown = false
   private let maxDelta = 2000.0
+  private let maxText = 64
+
+  /// Text focus watching: polls the system-wide focused element while a
+  /// trusted phone is connected, and reports changes to Dart.
+  var onTextFocus: ((Bool, Int) -> Void)?
+  private var focusTimer: Timer?
+  private var focusedField: AXUIElement?
+  private var focusActive = false
+  private var fieldCounter = 0
+  private var accessibleApps = Set<pid_t>()
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
@@ -97,6 +110,11 @@ private final class DotInputController {
       return
     case "reset":
       result(releaseDrag())
+      return
+    case "watchTextFocus":
+      let enabled = (call.arguments as? [String: Any])?["enabled"] as? Bool ?? false
+      setFocusWatch(enabled)
+      result(true)
       return
     default:
       break
@@ -165,6 +183,10 @@ private final class DotInputController {
       result(postKey(args["name"] as? String))
     case "media":
       result(postMedia(args["name"] as? String))
+    case "text":
+      result(postText(args["text"] as? String))
+    case "edit":
+      result(postEdit(args["name"] as? String))
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -236,6 +258,129 @@ private final class DotInputController {
     down.post(tap: .cghidEventTap)
     up.post(tap: .cghidEventTap)
     return true
+  }
+
+  private func postText(_ text: String?) -> Bool {
+    guard let text = text, !text.isEmpty, text.utf16.count <= maxText,
+          !text.unicodeScalars.contains(where: { $0.value < 0x20 || ($0.value >= 0x7f && $0.value < 0xa0) }) else {
+      return false
+    }
+    // One event per character: some apps only read the first character of a
+    // multi-character Unicode keyboard event.
+    for character in text {
+      let units = Array(String(character).utf16)
+      guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+            let up = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else { return false }
+      // Clear modifiers so a held Cmd on the Mac never turns text into shortcuts.
+      down.flags = []
+      up.flags = []
+      down.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+      up.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+      down.post(tap: .cghidEventTap)
+      up.post(tap: .cghidEventTap)
+    }
+    return true
+  }
+
+  private func postEdit(_ name: String?) -> Bool {
+    let code: CGKeyCode
+    switch name {
+    case "backspace": code = 51
+    case "enter": code = 36
+    case "tab": code = 48
+    case "left": code = 123
+    case "right": code = 124
+    case "down": code = 125
+    case "up": code = 126
+    default: return false
+    }
+    guard let down = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true),
+          let up = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false) else { return false }
+    down.flags = []
+    up.flags = []
+    down.post(tap: .cghidEventTap)
+    up.post(tap: .cghidEventTap)
+    return true
+  }
+
+  private func setFocusWatch(_ enabled: Bool) {
+    focusTimer?.invalidate()
+    focusTimer = nil
+    focusedField = nil
+    focusActive = false
+    guard enabled else { return }
+    let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+      self?.pollFocus()
+    }
+    RunLoop.main.add(timer, forMode: .common)
+    focusTimer = timer
+    pollFocus()
+  }
+
+  private func pollFocus() {
+    guard AXIsProcessTrusted() else { report(nil); return }
+    if let app = NSWorkspace.shared.frontmostApplication {
+      enableAccessibility(app.processIdentifier)
+    }
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(),
+                                        kAXFocusedUIElementAttribute as CFString,
+                                        &value) == .success,
+          let raw = value, CFGetTypeID(raw) == AXUIElementGetTypeID() else {
+      report(nil)
+      return
+    }
+    let element = raw as! AXUIElement
+    report(isTextInput(element) ? element : nil)
+  }
+
+  /// Chromium and Electron apps (Chrome, VS Code, Slack) only expose their web
+  /// content to Accessibility after a client asks for it.
+  private func enableAccessibility(_ pid: pid_t) {
+    guard pid != getpid(), !accessibleApps.contains(pid) else { return }
+    accessibleApps.insert(pid)
+    AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid),
+                                 "AXManualAccessibility" as CFString, kCFBooleanTrue)
+  }
+
+  private func report(_ element: AXUIElement?) {
+    var changed = false
+    if let element = element {
+      if focusedField == nil || !CFEqual(focusedField!, element) {
+        fieldCounter += 1
+        focusedField = element
+        changed = true
+      }
+    } else {
+      focusedField = nil
+    }
+    let active = element != nil
+    guard active != focusActive || changed else { return }
+    focusActive = active
+    onTextFocus?(active, fieldCounter)
+  }
+
+  private func isTextInput(_ element: AXUIElement) -> Bool {
+    var pid: pid_t = 0
+    if AXUIElementGetPid(element, &pid) == .success, pid == getpid() { return false }
+    if let enabled = attribute(element, kAXEnabledAttribute) as? Bool, !enabled { return false }
+    let role = attribute(element, kAXRoleAttribute) as? String ?? ""
+    let subrole = attribute(element, kAXSubroleAttribute) as? String ?? ""
+    if ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"].contains(role) ||
+       subrole == "AXSearchField" || subrole == "AXSecureTextField" {
+      return true
+    }
+    // Rich editors and contenteditable regions: an editable caret.
+    var settable: DarwinBoolean = false
+    return AXUIElementIsAttributeSettable(element, kAXSelectedTextRangeAttribute as CFString,
+                                          &settable) == .success && settable.boolValue &&
+      attribute(element, kAXSelectedTextRangeAttribute) != nil
+  }
+
+  private func attribute(_ element: AXUIElement, _ name: String) -> AnyObject? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+    return value
   }
 
   private func postMedia(_ name: String?) -> Bool {

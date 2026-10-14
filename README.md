@@ -91,8 +91,22 @@ Vanaf v0.2.3 hoef je dit maar één keer te doen. Verplaats je van v0.2.2 of
 ouder, geef DOT na deze update nog één laatste keer opnieuw toestemming.
 
 Op Android vind je **Bediening** in de werkruimte. Daar kun je wisselen tussen
-**Trackpad**, **Presentatie** en **Media**. Alleen een gekoppelde telefoon kan
-invoer sturen. Zonder Toegankelijkheid kan DOT de Mac niet bedienen.
+**Trackpad**, **Presentatie**, **Media** en **Typen**. Alleen een gekoppelde
+telefoon kan invoer sturen. Zonder Toegankelijkheid kan DOT de Mac niet
+bedienen.
+
+### Typen met je telefoon
+
+Klik op je Mac in een tekstveld terwijl DOT op je telefoon open staat. DOT
+opent dan vanzelf **Typen** en het toetsenbord van je telefoon. Wat je typt,
+verschijnt op je Mac, inclusief autocorrectie, swipen en emoji. Onder het
+tekstvak staan knoppen voor wissen, Tab, Enter en de pijltjestoetsen. Wil je
+niet dat het toetsenbord vanzelf opent, zet dan op Android **Toetsenbord
+automatisch openen** uit in de instellingen.
+
+De Mac herkent tekstvelden via Toegankelijkheid. In de meeste apps werkt dat
+direct. Herkent DOT een veld niet, open dan zelf **Typen**: typen werkt
+overal waar de cursor staat.
 
 ## Privacy
 

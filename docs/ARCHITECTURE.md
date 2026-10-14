@@ -82,7 +82,27 @@ binary: [36 bytes item id ascii][8 bytes big-endian offset][chunk ≤ 256 KiB]
 { "t": "input", "k": "key", "key": "next"|"prev"|"start"|"start_keynote"|"end"|"blackout"|"escape"|"space" }
 { "t": "input", "k": "media", "m": "playpause"|"next"|"prev"|"volup"|"voldown"|"mute" }
 { "t": "input_status", "enabled": true, "trusted": false }
+{ "t": "input", "k": "text", "s": "Hallo 👋" }
+{ "t": "input", "k": "edit", "key": "backspace"|"enter"|"tab"|"left"|"right"|"up"|"down" }
+{ "t": "text_focus", "active": true, "field": 3 }
 ```
+
+### Typing from the phone (v0.3)
+- `text` carries 1 to 64 UTF-16 code units of printable text: no control
+  characters and no lone surrogates. Newlines and tabs are `edit` keys. Longer
+  text is split by `RemoteInput.chunkText` without breaking surrogate pairs. The
+  Mac posts one Unicode keyboard event per character with modifiers cleared.
+  `edit` maps to Backspace (51), Return (36), Tab (48) and arrows (123 to 126).
+- `text_focus` is host-to-client only. The host watches native focus (polling the
+  system-wide Accessibility focused element every 250 ms) only while a paired,
+  authenticated phone is connected, `remoteControl` is on and Accessibility is
+  trusted, and sends an inactive `text_focus` when that stops. `field` changes
+  whenever focus moves to a different text field. The client exposes it as
+  `SyncEngine.remoteTextFocus`, reset on disconnect.
+- The phone mirrors typing in a text field whose cursor is pinned to the end.
+  `TypingDiff` turns each edit into backspaces plus inserted text, so
+  autocorrect and swipe typing replace only the changed tail. A zero-width
+  sentinel keeps backspace on an empty field observable.
 
 ### Remote input (v0.2)
 - `input` is client-to-host only, ephemeral, fire-and-forget: no persistence,

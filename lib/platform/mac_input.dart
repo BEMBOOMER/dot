@@ -9,8 +9,31 @@ import '../sync/input_sink.dart';
 class MacInput implements InputSink {
   static const _channel = MethodChannel('dot/input');
   final _trusted = ValueNotifier(false);
+  final _textFocus = ValueNotifier(const TextFocus());
   @override
   ValueListenable<bool> get trusted => _trusted;
+  @override
+  ValueListenable<TextFocus> get textFocus => _textFocus;
+
+  MacInput() {
+    if (Platform.isMacOS) _channel.setMethodCallHandler(_onNativeCall);
+  }
+
+  Future<void> _onNativeCall(MethodCall call) async {
+    if (call.method != 'textFocus') return;
+    final args = call.arguments;
+    if (args is! Map) return;
+    final active = args['active'];
+    final field = args['field'];
+    if (active is! bool || field is! int) return;
+    _textFocus.value = TextFocus(active: active, field: field);
+  }
+
+  @override
+  Future<void> watchTextFocus(bool enabled) async {
+    if (!enabled) _textFocus.value = const TextFocus();
+    await _call('watchTextFocus', {'enabled': enabled});
+  }
 
   static Future<bool> _call(String method, [Object? arguments]) async {
     if (!Platform.isMacOS) return false;
@@ -50,6 +73,8 @@ class MacInput implements InputSink {
       PointerScroll() => _call('scroll', {'dx': wire['dx'], 'dy': wire['dy']}),
       PresentationKey(:final key) => _call('key', {'name': key.wireName}),
       MediaKey(:final media) => _call('media', {'name': media.name}),
+      TypedText(:final text) => _call('text', {'text': text}),
+      EditKeyPress(:final key) => _call('edit', {'name': key.name}),
     };
   }
 
