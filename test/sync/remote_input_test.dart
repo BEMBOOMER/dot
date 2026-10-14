@@ -35,6 +35,15 @@ class RecordingInputSink implements InputSink {
   Future<void> reset() async {
     resets++;
   }
+
+  @override
+  final ValueNotifier<TextFocus> textFocus = ValueNotifier(const TextFocus());
+  final watchCalls = <bool>[];
+  bool get watching => watchCalls.isNotEmpty && watchCalls.last;
+  @override
+  Future<void> watchTextFocus(bool enabled) async {
+    watchCalls.add(enabled);
+  }
 }
 
 /// A raw, pinned socket lets tests bypass client-side guards and send malicious
@@ -154,6 +163,8 @@ void main() {
         const RemoteInput.scroll(-1, 10),
         for (final key in RemoteKey.values) RemoteInput.key(key),
         for (final media in RemoteMedia.values) RemoteInput.media(media),
+        const RemoteInput.text('Hallo wereld 👋'),
+        for (final key in EditKey.values) RemoteInput.edit(key),
       ];
       for (final input in inputs) {
         client.engine.sendInput(input);
@@ -319,6 +330,10 @@ void main() {
           {'k': 'scroll', 'dx': '2', 'dy': 0},
           {'k': 'click', 'b': 'middle', 'n': 1},
           {'k': 'key', 'key': 'launch'},
+          {'k': 'text', 's': 'a\nb'},
+          {'k': 'text', 's': ''},
+          {'k': 'text', 's': 'x' * 65},
+          {'k': 'edit', 'key': 'delete_all'},
           {'k': 'unknown'},
         ]) {
           raw.send('input', wire);
@@ -340,6 +355,41 @@ void main() {
     },
   );
 
+  test('Mac text focus reaches the phone only while it can type', () async {
+    expect(sink.watching, isFalse);
+    await pair(host, client);
+    await eventually(() async => sink.watching);
+    sink.textFocus.value = const TextFocus(active: true, field: 1);
+    await eventually(
+      () async => client.engine.remoteTextFocus.value.active,
+    );
+    expect(client.engine.remoteTextFocus.value.field, 1);
+    sink.textFocus.value = const TextFocus(active: true, field: 2);
+    await eventually(
+      () async => client.engine.remoteTextFocus.value.field == 2,
+    );
+
+    host.settings.remoteControl = false;
+    await eventually(() async => !sink.watching);
+    await eventually(
+      () async => !client.engine.remoteTextFocus.value.active,
+    );
+    host.settings.remoteControl = true;
+    await eventually(() async => sink.watching);
+    await eventually(
+      () async => client.engine.remoteTextFocus.value.active,
+    );
+
+    sink.trusted.value = false;
+    await eventually(() async => !sink.watching);
+    sink.trusted.value = true;
+    await eventually(() async => sink.watching);
+
+    await client.engine.stop();
+    expect(client.engine.remoteTextFocus.value, const TextFocus());
+    await eventually(() async => !sink.watching);
+  });
+
   test('sliding rate window does not double-burst at a fixed boundary', () {
     var now = const Duration(milliseconds: 999);
     final limiter = InputRateLimiter(clock: () => now);
@@ -352,3 +402,4 @@ void main() {
     expect(limiter.allow(), isTrue);
   });
 }
+

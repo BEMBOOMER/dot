@@ -119,6 +119,19 @@ class SettingsScreen extends StatelessWidget {
                   const _MacInputAccess(),
                 ],
 
+                if (Platform.isAndroid) ...[
+                  const Divider(),
+                  _buildSectionHeader(context, 'Bediening'),
+                  SwitchListTile(
+                    title: const Text('Toetsenbord automatisch openen'),
+                    subtitle: const Text(
+                      'Klik je op je Mac in een tekstveld, dan opent DOT hier het toetsenbord.',
+                    ),
+                    value: settings.phoneKeyboard,
+                    onChanged: (value) => settings.phoneKeyboard = value,
+                  ),
+                ],
+
                 const Divider(),
                 _buildSectionHeader(context, 'Apparaat'),
                 ListTile(

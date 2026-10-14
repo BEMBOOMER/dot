@@ -41,6 +41,9 @@ class FakeSyncEngine extends SyncEngine {
   final _remoteStatus = ValueNotifier(const RemoteInputStatus());
   @override
   ValueListenable<RemoteInputStatus> get remoteStatus => _remoteStatus;
+  final _remoteTextFocus = ValueNotifier(const TextFocus());
+  @override
+  ValueListenable<TextFocus> get remoteTextFocus => _remoteTextFocus;
   @override
   void sendInput(RemoteInput input) {}
   @override
@@ -235,6 +238,7 @@ class FakeSyncEngine extends SyncEngine {
     _events.close();
     _transfers.dispose();
     _remoteStatus.dispose();
+    _remoteTextFocus.dispose();
     super.dispose();
   }
 }

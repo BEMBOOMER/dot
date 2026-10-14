@@ -43,6 +43,9 @@ class _RecordingEngine extends FakeSyncEngine {
   ValueListenable<RemoteInputStatus> get remoteStatus => inputStatus;
   @override
   void sendInput(RemoteInput input) => inputs.add(input);
+  final textFocus = ValueNotifier(const TextFocus());
+  @override
+  ValueListenable<TextFocus> get remoteTextFocus => textFocus;
   void disconnect() {
     connection = ConnectionStatus.offline;
     notifyListeners();
@@ -51,6 +54,7 @@ class _RecordingEngine extends FakeSyncEngine {
   @override
   void dispose() {
     inputStatus.dispose();
+    textFocus.dispose();
     super.dispose();
   }
 }
@@ -599,13 +603,27 @@ void main() {
     (tester) async {
       await show(tester);
       await tab(tester, 'Presentatie');
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      // Real Android transitions; the keyboard tab's text field registers a
+      // lifecycle listener that asserts on skipped states.
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
       await tester.pump();
       expect(volumeCalls.last.arguments, isFalse);
       expect(screenCalls.last.arguments, isFalse);
       await volume('next');
       expect(engine.inputs, isEmpty);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
       await tester.pump();
       expect(volumeCalls.last.arguments, isTrue);
       final navigator = tester.state<NavigatorState>(find.byType(Navigator));
@@ -837,4 +855,69 @@ void main() {
       });
     },
   );
+
+  remoteTest('typing tab sends text, corrections and edit keys', (
+    tester,
+  ) async {
+    await show(tester);
+    await tab(tester, 'Typen');
+    expect(find.text('Klik op je Mac in een tekstveld'), findsOneWidget);
+    final field = find.byKey(const ValueKey('remote-keyboard-field'));
+    await tester.tap(field);
+    await tester.pump();
+    await tester.enterText(field, '​Hoi');
+    await tester.enterText(field, '​Ho');
+    await tester.enterText(field, '​Hoe gaat');
+    await tester.enterText(field, '​Hoe gaat\n');
+    // An empty mirror: deleting the zero-width space is one more backspace.
+    await tester.enterText(field, '');
+    await tester.tap(find.widgetWithText(FilledButton, 'Tab'));
+    await tester.tap(find.byTooltip('Links'));
+    await tester.pump();
+    expect(engine.inputs.map((input) => input.toWire()), [
+      const RemoteInput.text('Hoi').toWire(),
+      const RemoteInput.edit(EditKey.backspace).toWire(),
+      const RemoteInput.text('e gaat').toWire(),
+      const RemoteInput.edit(EditKey.enter).toWire(),
+      const RemoteInput.edit(EditKey.backspace).toWire(),
+      const RemoteInput.edit(EditKey.tab).toWire(),
+      const RemoteInput.edit(EditKey.left).toWire(),
+    ]);
+  });
+
+  remoteTest('a focused Mac text field opens the keyboard tab', (
+    tester,
+  ) async {
+    await show(tester);
+    expect(find.text('Typen'), findsOneWidget);
+    engine.textFocus.value = const TextFocus(active: true, field: 1);
+    await tester.pumpAndSettle();
+    final field = find.byKey(const ValueKey('remote-keyboard-field'));
+    expect(find.text('Tekstveld actief op je Mac'), findsOneWidget);
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+    engine.textFocus.value = const TextFocus(active: false, field: 1);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isFalse);
+    expect(find.text('Toetsenbord openen'), findsOneWidget);
+
+    settings.phoneKeyboard = false;
+    await tab(tester, 'Trackpad');
+    engine.textFocus.value = const TextFocus(active: true, field: 2);
+    await tester.pumpAndSettle();
+    expect(surface, findsOneWidget);
+  });
+
+  remoteTest('typing is blocked while the Mac cannot be controlled', (
+    tester,
+  ) async {
+    engine.inputStatus.value = const RemoteInputStatus(
+      available: true,
+      enabled: false,
+      trusted: true,
+    );
+    await show(tester);
+    await tab(tester, 'Typen');
+    expect(find.text('Typen is niet actief'), findsOneWidget);
+    expect(engine.inputs, isEmpty);
+  });
 }

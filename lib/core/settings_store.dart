@@ -39,6 +39,10 @@ class SettingsStore extends ChangeNotifier {
   bool get remoteControl => prefs.getBool('remoteControl') ?? true;
   set remoteControl(bool v) => _set(() => prefs.setBool('remoteControl', v));
 
+  /// Android: open the keyboard when a text field on the Mac gets focus.
+  bool get phoneKeyboard => prefs.getBool('phoneKeyboard') ?? true;
+  set phoneKeyboard(bool v) => _set(() => prefs.setBool('phoneKeyboard', v));
+
   bool get menuBarIcon => prefs.getBool('menuBarIcon') ?? true;
   set menuBarIcon(bool v) => _set(() => prefs.setBool('menuBarIcon', v));
 

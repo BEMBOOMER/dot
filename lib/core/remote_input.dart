@@ -17,10 +17,16 @@ enum RemoteKey {
 
 enum RemoteMedia { playpause, next, prev, volup, voldown, mute }
 
+/// Editing keys for typing on the Mac from the phone keyboard.
+enum EditKey { backspace, enter, tab, left, right, up, down }
+
 /// Ephemeral input, never stored in the repository or retried after reconnect.
 @immutable
 sealed class RemoteInput {
   static const double maxDelta = 2000;
+
+  /// Longest text payload in UTF-16 code units. Longer input is split.
+  static const int maxText = 64;
 
   const RemoteInput();
   const factory RemoteInput.move(double dx, double dy) = PointerMove;
@@ -30,6 +36,51 @@ sealed class RemoteInput {
   const factory RemoteInput.scroll(double dx, double dy) = PointerScroll;
   const factory RemoteInput.key(RemoteKey key) = PresentationKey;
   const factory RemoteInput.media(RemoteMedia media) = MediaKey;
+  const factory RemoteInput.text(String text) = TypedText;
+  const factory RemoteInput.edit(EditKey key) = EditKeyPress;
+
+  /// Printable text only: no control characters (use [EditKey] for those)
+  /// and no lone surrogates.
+  static bool validText(String text) {
+    if (text.isEmpty || text.length > maxText) return false;
+    final units = text.codeUnits;
+    for (var i = 0; i < units.length; i++) {
+      final c = units[i];
+      if (c < 0x20 || (c >= 0x7f && c < 0xa0)) return false;
+      if (c >= 0xd800 && c <= 0xdbff) {
+        if (i + 1 >= units.length) return false;
+        final next = units[i + 1];
+        if (next < 0xdc00 || next > 0xdfff) return false;
+        i++;
+      } else if (c >= 0xdc00 && c <= 0xdfff) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Splits [text] into valid payloads without breaking surrogate pairs.
+  /// Control characters are dropped, except newlines and tabs which the
+  /// caller should send as [EditKey]s; those are dropped here too.
+  static List<String> chunkText(String text) {
+    final clean = StringBuffer();
+    for (final rune in text.runes) {
+      if (rune < 0x20 || (rune >= 0x7f && rune < 0xa0)) continue;
+      clean.writeCharCode(rune);
+    }
+    final chunks = <String>[];
+    var current = StringBuffer();
+    for (final rune in clean.toString().runes) {
+      final char = String.fromCharCode(rune);
+      if (current.length + char.length > maxText) {
+        chunks.add(current.toString());
+        current = StringBuffer();
+      }
+      current.write(char);
+    }
+    if (current.isNotEmpty) chunks.add(current.toString());
+    return chunks;
+  }
 
   Map<String, Object?> toWire();
 
@@ -84,6 +135,17 @@ sealed class RemoteInput {
         if (!fields({'t', 'k', 'm'})) return null;
         for (final media in RemoteMedia.values) {
           if (value['m'] == media.name) return MediaKey(media);
+        }
+        return null;
+      case 'text':
+        if (!fields({'t', 'k', 's'})) return null;
+        final text = value['s'];
+        if (text is! String || !validText(text)) return null;
+        return TypedText(text);
+      case 'edit':
+        if (!fields({'t', 'k', 'key'})) return null;
+        for (final key in EditKey.values) {
+          if (value['key'] == key.name) return EditKeyPress(key);
         }
         return null;
       default:
@@ -165,6 +227,56 @@ final class MediaKey extends RemoteInput {
     'k': 'media',
     'm': media.name,
   };
+}
+
+final class TypedText extends RemoteInput {
+  final String text;
+  const TypedText(this.text);
+  @override
+  Map<String, Object?> toWire() => {'t': 'input', 'k': 'text', 's': text};
+}
+
+final class EditKeyPress extends RemoteInput {
+  final EditKey key;
+  const EditKeyPress(this.key);
+  @override
+  Map<String, Object?> toWire() => {'t': 'input', 'k': 'edit', 'key': key.name};
+}
+
+/// Host to client: whether a text field on the Mac has keyboard focus.
+/// [field] changes whenever focus moves to a different text field, so the
+/// phone can offer its keyboard again after the user dismissed it.
+@immutable
+class TextFocus {
+  final bool active;
+  final int field;
+  const TextFocus({this.active = false, this.field = 0});
+
+  Map<String, Object?> toWire() => {
+    't': 'text_focus',
+    'active': active,
+    'field': field,
+  };
+
+  static TextFocus? fromWire(Object? value) {
+    if (value is! Map ||
+        value.length != 3 ||
+        value['t'] != 'text_focus' ||
+        value['active'] is! bool ||
+        value['field'] is! int) {
+      return null;
+    }
+    return TextFocus(
+      active: value['active'] as bool,
+      field: value['field'] as int,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is TextFocus && active == other.active && field == other.field;
+  @override
+  int get hashCode => Object.hash(active, field);
 }
 
 @immutable
